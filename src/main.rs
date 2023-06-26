@@ -6,9 +6,16 @@
 fn main() -> eframe::Result<()> {
     env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
 
-    let native_options = eframe::NativeOptions::default();
+    let native_options = eframe::NativeOptions{
+        //depth_buffer: 8,
+        //stencil_buffer: 8,
+        //multisampling: 16,
+        event_loop_builder: Some(Box::new(move |builder| {
+        })),
+        ..Default::default()
+    };
     eframe::run_native(
-        "eframe template",
+        "f9",
         native_options,
         Box::new(|cc| Box::new(eframe_template::TemplateApp::new(cc))),
     )
