@@ -1,118 +1,187 @@
-use std::{num::NonZeroU64, sync::Arc};
-use instant::Instant;
 use eframe::{
     egui_wgpu::wgpu::util::DeviceExt,
-    egui_wgpu::{self, wgpu}, wgpu::AdapterInfo,
+    egui_wgpu::{self, wgpu, RenderState},
+    wgpu::{AdapterInfo, Device},
 };
+use instant::{Duration, Instant};
+use std::{num::NonZeroU64, sync::Arc};
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct TemplateApp {
     #[serde(skip)]
-    adapter_info : Option<AdapterInfo>,
+    adapter_info: Option<AdapterInfo>,
     #[serde(skip)]
     last_render_time: Instant,
+    #[serde(skip)]
+    cp : Option<ComputeResources>,
 }
 
 impl Default for TemplateApp {
     fn default() -> Self {
         Self {
-            adapter_info : None,
+            adapter_info: None,
             last_render_time: Instant::now(),
+            cp: None,
         }
     }
+}
+
+fn build_compute_shader(device: &Arc<Device>, wgpu_render_state: &RenderState) -> ComputeResources {
+    let label = Some("compute");
+    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label,
+        source: wgpu::ShaderSource::Wgsl(include_str!("./shaders/compute.wgsl").into()),
+    });
+
+    let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label,
+        entries: &[wgpu::BindGroupLayoutEntry {
+            binding: 0,
+            visibility: wgpu::ShaderStages::COMPUTE,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Storage { read_only: false },
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+            count: None,
+        }],
+    });
+
+    let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        label,
+        bind_group_layouts: &[&bind_group_layout],
+        push_constant_ranges: &[],
+    });
+
+    let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+        label,
+        layout: Some(&pipeline_layout),
+        module: &shader,
+        entry_point: "main",
+    });
+
+
+    let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label,
+        contents: bytemuck::cast_slice(&[0.0_f32; 4]), // 16 bytes aligned!
+        // Mapping at creation (as done by the create_buffer_init utility) doesn't require us to to add the MAP_WRITE usage
+        // (this *happens* to workaround this bug )
+        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::STORAGE,
+    });
+
+    let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label,
+        layout: &bind_group_layout,
+        entries: &[wgpu::BindGroupEntry {
+            binding: 0,
+            resource: buffer.as_entire_binding(),
+        }],
+    });
+
+    return ComputeResources {
+        pipeline,
+        bind_group,
+        buffer,
+    };
+}
+
+fn build_test_shader(
+    device: &Arc<Device>,
+    wgpu_render_state: &RenderState,
+) -> TriangleRenderResources {
+    let label = Some("custom3d");
+    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label,
+        source: wgpu::ShaderSource::Wgsl(include_str!("./shaders/shader.wgsl").into()),
+    });
+
+    let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label,
+        entries: &[wgpu::BindGroupLayoutEntry {
+            binding: 0,
+            visibility: wgpu::ShaderStages::VERTEX,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: NonZeroU64::new(16),
+            },
+            count: None,
+        }],
+    });
+
+    let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        label,
+        bind_group_layouts: &[&bind_group_layout],
+        push_constant_ranges: &[],
+    });
+
+    //device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor { label: (), layout: (), module: (), entry_point: () })
+
+    let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label,
+        layout: Some(&pipeline_layout),
+        vertex: wgpu::VertexState {
+            module: &shader,
+            entry_point: "vs_main",
+            buffers: &[],
+        },
+        fragment: Some(wgpu::FragmentState {
+            module: &shader,
+            entry_point: "fs_main",
+            targets: &[Some(wgpu_render_state.target_format.into())],
+        }),
+        primitive: wgpu::PrimitiveState::default(),
+        depth_stencil: None,
+        multisample: wgpu::MultisampleState::default(),
+        multiview: None,
+    });
+
+    let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label,
+        contents: bytemuck::cast_slice(&[0.0_f32; 4]), // 16 bytes aligned!
+        // Mapping at creation (as done by the create_buffer_init utility) doesn't require us to to add the MAP_WRITE usage
+        // (this *happens* to workaround this bug )
+        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
+    });
+
+    let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label,
+        layout: &bind_group_layout,
+        entries: &[wgpu::BindGroupEntry {
+            binding: 0,
+            resource: uniform_buffer.as_entire_binding(),
+        }],
+    });
+
+    return TriangleRenderResources {
+        pipeline,
+        bind_group,
+        uniform_buffer,
+    };
 }
 
 impl TemplateApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         let wgpu_render_state = cc.wgpu_render_state.as_ref().unwrap();
-
-        
-
         let device = &wgpu_render_state.device;
 
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("custom3d"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("./shaders/shader.wgsl").into()),
-        });
-
-        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("custom3d"),
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: NonZeroU64::new(16),
-                },
-                count: None,
-            }],
-        });
-
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("custom3d"),
-            bind_group_layouts: &[&bind_group_layout],
-            push_constant_ranges: &[],
-        });
-
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("custom3d"),
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: "vs_main",
-                buffers: &[],
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: "fs_main",
-                targets: &[Some(wgpu_render_state.target_format.into())],
-            }),
-            primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            multiview: None,
-        });
-
-        let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("custom3d"),
-            contents: bytemuck::cast_slice(&[0.0_f32; 4]), // 16 bytes aligned!
-            // Mapping at creation (as done by the create_buffer_init utility) doesn't require us to to add the MAP_WRITE usage
-            // (this *happens* to workaround this bug )
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
-        });
-
-        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("custom3d"),
-            layout: &bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: uniform_buffer.as_entire_binding(),
-            }],
-        });
-
-        // Because the graphics pipeline must have the same lifetime as the egui render pass,
-        // instead of storing the pipeline in our `Custom3D` struct, we insert it into the
-        // `paint_callback_resources` type map, which is stored alongside the render pass.
         wgpu_render_state
             .renderer
             .write()
             .paint_callback_resources
-            .insert(TriangleRenderResources {
-                pipeline,
-                bind_group,
-                uniform_buffer,
-            });
+            .insert(build_test_shader(device, wgpu_render_state));
 
-            let mut app : TemplateApp =
-        if let Some(storage) = cc.storage {
-             eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default()
+        
+
+        let mut app: TemplateApp = if let Some(storage) = cc.storage {
+            eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default()
         } else {
             Default::default()
         };
-        
+
         app.adapter_info = Some(wgpu_render_state.adapter.get_info());
+        app.cp= Some(build_compute_shader(device, wgpu_render_state));
         return app;
     }
 }
@@ -123,11 +192,34 @@ impl eframe::App for TemplateApp {
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        if let Some(cp) = & self.cp {
+            let wstate = _frame.wgpu_render_state().unwrap();
+           
+            let mut encoder = wstate.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Compute Encoder"),
+            });
+            
+            {
+                let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                    label: Some("Compute Pass"),
+                });
+                compute_pass.set_pipeline(&cp.pipeline);
+                compute_pass.set_bind_group(0, &cp.bind_group, &[]);
+                compute_pass.dispatch_workgroups(4, 1, 1);
+            
+            }
+            
+            let command_buffer = encoder.finish();
+            let i = wstate.queue.submit(Some(command_buffer));
+        }
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("f9");
 
             let (rect, response) =
                 ui.allocate_exact_size(egui::Vec2::splat(300.0), egui::Sense::drag());
+
+            
+            
 
             let cb = egui_wgpu::CallbackFn::new()
                 .prepare(move |device, queue, _encoder, paint_callback_resources| {
@@ -159,7 +251,7 @@ impl eframe::App for TemplateApp {
                 ui.label(format!("driver: {}", adapter_info.driver));
                 ui.label(format!("driver_info: {}", adapter_info.driver_info));
                 let ele = self.last_render_time.elapsed();
-                let fps = 1.0 / ele.as_secs_f64(); 
+                let fps = 1.0 / ele.as_secs_f64();
                 ui.label(format!("duration {:.0}ms", ele.as_millis() as f64));
                 ui.label(format!("frames {:.0}/s", fps));
                 self.last_render_time = Instant::now();
@@ -169,12 +261,19 @@ impl eframe::App for TemplateApp {
         ctx.request_repaint();
     }
 }
+struct ComputeResources {
+    pipeline: wgpu::ComputePipeline,
+    bind_group: wgpu::BindGroup,
+    buffer: wgpu::Buffer,
+}
 
 struct TriangleRenderResources {
     pipeline: wgpu::RenderPipeline,
     bind_group: wgpu::BindGroup,
     uniform_buffer: wgpu::Buffer,
 }
+
+
 
 impl TriangleRenderResources {
     fn prepare(&self, _device: &wgpu::Device, queue: &wgpu::Queue, angle: f32) {
