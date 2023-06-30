@@ -3,9 +3,12 @@ use eframe::{
     egui_wgpu::{self, wgpu, RenderState},
     wgpu::{AdapterInfo, BindGroupLayout, BufferDescriptor, BufferUsages, Device},
 };
-use egui::{epaint::Shadow, Color32, Margin, Rounding, Stroke, Vec2};
+use egui::{epaint::Shadow, vec2, Color32, Margin, Pos2, Rect, Rounding, Stroke, Vec2};
+use glam::Mat4;
 use instant::{Duration, Instant};
 use std::{num::NonZeroU64, sync::Arc};
+
+use crate::camera::Camera;
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)]
@@ -15,11 +18,9 @@ pub struct TemplateApp {
     #[serde(skip)]
     last_render_time: Instant,
     #[serde(skip)]
-    cp: Option<ComputeResources>,
-    #[serde(skip)]
     raster: Option<RasterResources>,
     #[serde(skip)]
-    screen: Option<TriangleRenderResources>,
+    camera: Camera,
 }
 
 impl Default for TemplateApp {
@@ -27,9 +28,8 @@ impl Default for TemplateApp {
         Self {
             adapter_info: None,
             last_render_time: Instant::now(),
-            cp: None,
             raster: None,
-            screen: None,
+            camera: Camera::default(),
         }
     }
 }
@@ -251,137 +251,6 @@ fn build_raster_pass(device: &Arc<Device>, wgpu_render_state: &RenderState) -> R
     };
 }
 
-fn build_compute_shader(device: &Arc<Device>, wgpu_render_state: &RenderState) -> ComputeResources {
-    let label = Some("compute");
-    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label,
-        source: wgpu::ShaderSource::Wgsl(include_str!("./shaders/compute.wgsl").into()),
-    });
-
-    let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label,
-        entries: &[wgpu::BindGroupLayoutEntry {
-            binding: 0,
-            visibility: wgpu::ShaderStages::COMPUTE,
-            ty: wgpu::BindingType::Buffer {
-                ty: wgpu::BufferBindingType::Storage { read_only: false },
-                has_dynamic_offset: false,
-                min_binding_size: None,
-            },
-            count: None,
-        }],
-    });
-
-    let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-        label,
-        bind_group_layouts: &[&bind_group_layout],
-        push_constant_ranges: &[],
-    });
-
-    let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-        label,
-        layout: Some(&pipeline_layout),
-        module: &shader,
-        entry_point: "main",
-    });
-
-    let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label,
-        contents: bytemuck::cast_slice(&[0.0_f32; 4]), // 16 bytes aligned!
-        // Mapping at creation (as done by the create_buffer_init utility) doesn't require us to to add the MAP_WRITE usage
-        // (this *happens* to workaround this bug )
-        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::STORAGE,
-    });
-
-    let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-        label,
-        layout: &bind_group_layout,
-        entries: &[wgpu::BindGroupEntry {
-            binding: 0,
-            resource: buffer.as_entire_binding(),
-        }],
-    });
-
-    return ComputeResources {
-        pipeline,
-        bind_group,
-        buffer,
-    };
-}
-
-fn build_test_shader(
-    device: &Arc<Device>,
-    wgpu_render_state: &RenderState,
-) -> TriangleRenderResources {
-    let label = Some("custom3d");
-    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label,
-        source: wgpu::ShaderSource::Wgsl(include_str!("./shaders/shader.wgsl").into()),
-    });
-
-    let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label,
-        entries: &[wgpu::BindGroupLayoutEntry {
-            binding: 0,
-            visibility: wgpu::ShaderStages::VERTEX,
-            ty: wgpu::BindingType::Buffer {
-                ty: wgpu::BufferBindingType::Uniform,
-                has_dynamic_offset: false,
-                min_binding_size: NonZeroU64::new(16),
-            },
-            count: None,
-        }],
-    });
-
-    let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label,
-        layout: Some(
-            &device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label,
-                bind_group_layouts: &[&bind_group_layout],
-                push_constant_ranges: &[],
-            }),
-        ),
-        vertex: wgpu::VertexState {
-            module: &shader,
-            entry_point: "vs_main",
-            buffers: &[],
-        },
-        fragment: Some(wgpu::FragmentState {
-            module: &shader,
-            entry_point: "fs_main",
-            targets: &[Some(wgpu_render_state.target_format.into())],
-        }),
-        primitive: wgpu::PrimitiveState::default(),
-        depth_stencil: None,
-        multisample: wgpu::MultisampleState::default(),
-        multiview: None,
-    });
-
-    let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label,
-        contents: bytemuck::cast_slice(&[0.0_f32; 4]), // 16 bytes aligned!
-        // Mapping at creation (as done by the create_buffer_init utility) doesn't require us to to add the MAP_WRITE usage
-        // (this *happens* to workaround this bug )
-        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
-    });
-
-    let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-        label,
-        layout: &bind_group_layout,
-        entries: &[wgpu::BindGroupEntry {
-            binding: 0,
-            resource: uniform_buffer.as_entire_binding(),
-        }],
-    });
-
-    return TriangleRenderResources {
-        pipeline,
-        bind_group,
-        uniform_buffer,
-    };
-}
-
 impl TemplateApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         let wgpu_render_state = cc.wgpu_render_state.as_ref().unwrap();
@@ -391,13 +260,10 @@ impl TemplateApp {
             .renderer
             .write()
             .paint_callback_resources
-            .insert(build_test_shader(device, wgpu_render_state));
-
-            wgpu_render_state
-            .renderer
-            .write()
-            .paint_callback_resources
-            .insert(WindowSize{ width: 1000.0, height: 1000.0 });
+            .insert(WindowSize {
+                width: 1000.0,
+                height: 1000.0,
+            });
 
         let mut app: TemplateApp = if let Some(storage) = cc.storage {
             eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default()
@@ -414,11 +280,8 @@ impl TemplateApp {
             .paint_callback_resources
             .insert(screen_pass);
 
-           
         app.adapter_info = Some(wgpu_render_state.adapter.get_info());
-        app.cp = Some(build_compute_shader(device, wgpu_render_state));
         app.raster = Some(raster);
-        //app.screen = Some(screen_pass);
         return app;
     }
 }
@@ -429,7 +292,6 @@ impl eframe::App for TemplateApp {
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        
         egui::CentralPanel::default()
             .frame(egui::Frame {
                 inner_margin: Margin::same(0.),
@@ -445,10 +307,31 @@ impl eframe::App for TemplateApp {
 
                 let (rect, response) =
                     ui.allocate_at_least(ui.available_size(), egui::Sense::drag());
+
+                self.camera.viewport = Rect {
+                    min: Pos2 {
+                        x: rect.min.x * ctx.pixels_per_point(),
+                        y: rect.min.y * ctx.pixels_per_point(),
+                    },
+                    max: Pos2 {
+                        x: rect.max.x * ctx.pixels_per_point(),
+                        y: rect.max.y * ctx.pixels_per_point(),
+                    },
+                };
+
+                self.camera.update_input(ctx);
+                self.camera.calculate_matrixs();
+
+                let pos = ctx.input(|e| e.pointer.hover_pos()).unwrap_or(Pos2::ZERO);
+                self.camera.update_ray(vec2(
+                    pos.x * ctx.pixels_per_point(),
+                    pos.y * ctx.pixels_per_point(),
+                ));
+
                 let renderstate = _frame.wgpu_render_state().unwrap();
                 {
                     let mut writer = renderstate.renderer.write();
-                    let s : &mut WindowSize = writer.paint_callback_resources.get_mut().unwrap();
+                    let s: &mut WindowSize = writer.paint_callback_resources.get_mut().unwrap();
                     if s.width != rect.width() || s.height != rect.height() {
                         s.width = rect.width();
                         s.height = rect.height();
@@ -456,17 +339,14 @@ impl eframe::App for TemplateApp {
                     }
                 }
                 if let Some(cp) = &self.raster {
-                    cp.execute(renderstate, rect.size());
+                    cp.execute(renderstate, rect.size(), &self.camera.projection_view_matrix);
                 }
-                
 
-                
                 let cb = egui_wgpu::CallbackFn::new()
                     .prepare(move |device, queue, _encoder, paint_callback_resources| {
                         let resources: &TriangleRenderResources2 =
                             paint_callback_resources.get().unwrap();
-                            let size: &WindowSize =
-                            paint_callback_resources.get().unwrap();
+                        let size: &WindowSize = paint_callback_resources.get().unwrap();
                         resources.set_size(device, queue, size.width, size.height);
                         Vec::new()
                     })
@@ -504,8 +384,8 @@ impl eframe::App for TemplateApp {
     }
 }
 
-struct WindowSize{
-    width : f32,
+struct WindowSize {
+    width: f32,
     height: f32,
 }
 
@@ -518,20 +398,27 @@ struct RasterResources {
     outputcolor_buffer: wgpu::Buffer,
 }
 
-struct ComputeResources {
-    pipeline: wgpu::ComputePipeline,
-    bind_group: wgpu::BindGroup,
-    buffer: wgpu::Buffer,
-}
-
 impl RasterResources {
-    fn execute(&self, renderstate: &RenderState, size : Vec2) {
+    fn execute(&self, renderstate: &RenderState, size: Vec2, projection: &Mat4) {
+
+
+        let mx_ref: &[f32; 16] = projection.as_ref();
+        
+        println!("{:?}", projection);
+        renderstate.queue.write_buffer(
+            &self.uniform_buffer,
+            8,
+            bytemuck::cast_slice(mx_ref),
+        );
         renderstate.queue.write_buffer(
             &self.uniform_buffer,
             0,
-            bytemuck::cast_slice(&[size.x, size.y]),
+            bytemuck::cast_slice(&[
+                size.x,
+                size.y,
+            ]),
         );
-
+        
 
         let mut encoder =
             renderstate
@@ -570,11 +457,6 @@ impl RasterResources {
     }
 }
 
-struct TriangleRenderResources {
-    pipeline: wgpu::RenderPipeline,
-    bind_group: wgpu::BindGroup,
-    uniform_buffer: wgpu::Buffer,
-}
 struct TriangleRenderResources2 {
     pipeline: wgpu::RenderPipeline,
     bind_group: wgpu::BindGroup,
@@ -594,22 +476,5 @@ impl TriangleRenderResources2 {
         render_pass.set_pipeline(&self.pipeline);
         render_pass.set_bind_group(0, &self.bind_group, &[]);
         render_pass.draw(0..6, 0..1);
-    }
-}
-
-impl TriangleRenderResources {
-    fn prepare(&self, _device: &wgpu::Device, queue: &wgpu::Queue, angle: f32) {
-        // Update our uniform buffer with the angle from the UI
-        queue.write_buffer(
-            &self.uniform_buffer,
-            0,
-            bytemuck::cast_slice(&[angle, 0.0, 0.0, 0.0]),
-        );
-    }
-
-    fn paint<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
-        render_pass.set_pipeline(&self.pipeline);
-        render_pass.set_bind_group(0, &self.bind_group, &[]);
-        render_pass.draw(0..3, 0..1);
     }
 }
