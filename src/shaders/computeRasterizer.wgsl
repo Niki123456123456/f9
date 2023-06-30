@@ -9,7 +9,16 @@ struct UBO {
  
 };
 
-struct Vertex { x: f32, y: f32, z: f32, };
+struct Vertex { 
+  //position : vec3<f32>,
+  //direction : vec3<f32>,
+  px : f32,
+  py : f32,
+  pz : f32,
+  dx : f32,
+  dy : f32,
+  dz : f32,
+ };
 
 struct VertexBuffer {
   values: array<Vertex>,
@@ -29,10 +38,6 @@ fn draw_line(v1: vec2<f32>, v2: vec2<f32>) {
       let y = u32(x2);
       set_pixel(x, y, 255u, 255u, 255u);
     }
-    //if (x1 > 0 && x2 > 0){
-      
-    //}
-    
   }
 }
 
@@ -44,22 +49,15 @@ fn set_pixel(x : u32, y : u32, r : u32, g : u32, b : u32){
 
 @compute @workgroup_size(1, 1)
 fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
-  let a = project(0.0, 0.0, 0.0);
-let b = project(1.0, 0.0, 0.0);
-let c = project(0.0, 0.0, 1.0);
-let d = project(0.0, 1.0, 0.0);
+  let step = 0.0001;
+  let axis = vertexBuffer.values[global_id.x];
+  let p = project(vec3<f32>(axis.px, axis.py, axis.pz)+ vec3<f32>(axis.dx, axis.dy, axis.dz) * step * f32(global_id.y));
+  let p2 = project(vec3<f32>(axis.px, axis.py, axis.pz)+ vec3<f32>(axis.dx, axis.dy, axis.dz) * step * f32(global_id.y + 1u));
 
-let e = project(-1.0, 0.0, 0.0);
-let f = project(0.0, 0.0, -1.0);
-let g = project(0.0, -1.0, 0.0);
-
-  draw_line(a, b);
-  draw_line(a, c);
-  draw_line(a, d);
-
-  draw_line(a, e);
-  draw_line(a, f);
-  draw_line(a, g);
+  if (is_off_screen(p) == false && is_off_screen(p2) == false) {
+    draw_line(p, p2);
+  }
+  
 
 }
 
@@ -71,14 +69,13 @@ fn is_off_screen(v: vec2<f32>) -> bool {
   return false;
 }
 
-fn project(x : f32, y : f32, z : f32) -> vec2<f32> {
-  var pos = uniforms.modelViewProjectionMatrix * vec4<f32>(x, y, z, 1.0);
+fn project(v : vec3<f32>) -> vec2<f32> {
+  var pos = uniforms.modelViewProjectionMatrix * vec4<f32>(v.x, v.y, v.z, 1.0);
   pos.x = pos.x / pos.w * uniforms.screenWidth;
   pos.y = pos.y  / pos.w * uniforms.screenHeight;
 
   var size = vec2<f32>(uniforms.screenWidth, uniforms.screenHeight);
 
-  //return vec2<f32>(pos.x, pos.y);
   return  vec4<f32>(((pos.xyz/pos.w) * 0.5 + 0.5) *  vec3<f32>(size, 1.0), pos.w).xy;
 }
 

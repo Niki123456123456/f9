@@ -1,10 +1,10 @@
 use eframe::{
     egui_wgpu::wgpu::util::DeviceExt,
     egui_wgpu::{self, wgpu, RenderState},
-    wgpu::{AdapterInfo, BindGroupLayout, BufferDescriptor, BufferUsages, Device},
+    wgpu::{AdapterInfo, BindGroupLayout, Buffer, BufferDescriptor, BufferUsages, Device, Queue},
 };
 use egui::{epaint::Shadow, vec2, Color32, Margin, Pos2, Rect, Rounding, Stroke, Vec2};
-use glam::Mat4;
+use glam::{Mat4, Vec3};
 use instant::{Duration, Instant};
 use std::{num::NonZeroU64, sync::Arc};
 
@@ -131,8 +131,8 @@ fn build_raster_pass(device: &Arc<Device>, wgpu_render_state: &RenderState) -> R
 
     let vertex_buffer = device.create_buffer(&BufferDescriptor {
         label,
-        size: 4 * 6,
-        usage: BufferUsages::STORAGE,
+        size: 4 * 36,
+        usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
         mapped_at_creation: false,
     });
 
@@ -339,7 +339,11 @@ impl eframe::App for TemplateApp {
                     }
                 }
                 if let Some(cp) = &self.raster {
-                    cp.execute(renderstate, rect.size(), &self.camera.projection_view_matrix);
+                    cp.execute(
+                        renderstate,
+                        rect.size(),
+                        &self.camera.projection_view_matrix,
+                    );
                 }
 
                 let cb = egui_wgpu::CallbackFn::new()
@@ -384,6 +388,13 @@ impl eframe::App for TemplateApp {
     }
 }
 
+#[derive(Clone)]
+#[repr(C)]
+pub struct Vertex {
+    pub position: Vec3,
+    pub direction: Vec3,
+}
+
 struct WindowSize {
     width: f32,
     height: f32,
@@ -400,24 +411,32 @@ struct RasterResources {
 
 impl RasterResources {
     fn execute(&self, renderstate: &RenderState, size: Vec2, projection: &Mat4) {
-
-
         let mx_ref: &[f32; 16] = projection.as_ref();
-        
-        renderstate.queue.write_buffer(
-            &self.uniform_buffer,
-            16,
-            bytemuck::cast_slice(mx_ref),
-        );
+
+        renderstate
+            .queue
+            .write_buffer(&self.uniform_buffer, 16, bytemuck::cast_slice(mx_ref));
         renderstate.queue.write_buffer(
             &self.uniform_buffer,
             0,
-            bytemuck::cast_slice(&[
-                size.x,
-                size.y,
-            ]),
+            bytemuck::cast_slice(&[size.x, size.y]),
         );
-        
+        let array = vec![
+            Vertex {
+                position: Vec3::ZERO,
+                direction: Vec3::X,
+            },
+            Vertex {
+                position: Vec3::ZERO,
+                direction: Vec3::Y,
+            },
+            Vertex {
+                position: Vec3::ZERO,
+                direction: Vec3::Z,
+            },
+        ];
+
+        write_buffer(&array, &renderstate.queue, &self.vertex_buffer);
 
         let mut encoder =
             renderstate
@@ -450,9 +469,17 @@ impl RasterResources {
             });
             passencoder.set_pipeline(&self.raster_pipeline);
             passencoder.set_bind_group(0, &self.bind_group, &[]);
-            passencoder.dispatch_workgroups(1, 1, 1);
+            passencoder.dispatch_workgroups(array.len() as u32, 1000, 1);
         }
         renderstate.queue.submit(Some(encoder.finish()));
+    }
+}
+
+fn write_buffer<T>(array: &[T], queue: &Queue, buffer: &Buffer) {
+    unsafe {
+        let single_size = std::mem::size_of::<Vertex>() * array.len();
+        let data = std::slice::from_raw_parts(array as *const [T] as *const u8, single_size);
+        queue.write_buffer(buffer, 0, data);
     }
 }
 
