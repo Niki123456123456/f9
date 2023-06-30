@@ -6,6 +6,7 @@ struct UBO {
   screenWidth: f32,
   screenHeight: f32,
   modelViewProjectionMatrix: mat4x4<f32>,
+ 
 };
 
 struct Vertex { x: f32, y: f32, z: f32, };
@@ -43,39 +44,23 @@ fn set_pixel(x : u32, y : u32, r : u32, g : u32, b : u32){
 
 @compute @workgroup_size(1, 1)
 fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
-/*
-  for (var x = 50u; x < 100u; x = x + 1u) {
-    for (var y = 50u; y < 100u; y = y + 1u) {
-      
-      set_pixel(x, y, 255u, 255u, 255u);
-    }
-  }
-  draw_line(vec2<f32>(100.0, 200.0), vec2<f32>(100.0, 100.0));*/
   let a = project(0.0, 0.0, 0.0);
-let b = project(100.0, 0.0, 0.0);
-let c = project(0.0, 0.0, 100.0);
-let d = project(0.0, 100.0, 0.0);
+let b = project(1.0, 0.0, 0.0);
+let c = project(0.0, 0.0, 1.0);
+let d = project(0.0, 1.0, 0.0);
 
+let e = project(-1.0, 0.0, 0.0);
+let f = project(0.0, 0.0, -1.0);
+let g = project(0.0, -1.0, 0.0);
 
-if (is_off_screen(a) || is_off_screen(b) ) {
-    //return;
-  }
   draw_line(a, b);
   draw_line(a, c);
   draw_line(a, d);
 
+  draw_line(a, e);
+  draw_line(a, f);
+  draw_line(a, g);
 
-  draw_line(vec2<f32>(100.0, 100.0), vec2<f32>(100.0, 200.0));
-/*
-  let b = project(vec3<f32>(100.0, 0.0, 0.0));
-  let c = project(vec3<f32>(-100.0, 0.0, 0.0));
-  let d = project(vec3<f32>(0.0, 100.0, 0.0));
-  let e = project(vec3<f32>(0.0, -100.0, 0.0));
- 
-  draw_line(a, b);
-  draw_line(a, c);
-  draw_line(a, d);
-  draw_line(a, e);*/
 }
 
 fn is_off_screen(v: vec2<f32>) -> bool {
@@ -88,13 +73,13 @@ fn is_off_screen(v: vec2<f32>) -> bool {
 
 fn project(x : f32, y : f32, z : f32) -> vec2<f32> {
   var pos = uniforms.modelViewProjectionMatrix * vec4<f32>(x, y, z, 1.0);
-  //screenPos.x = screenPos.x * uniforms.screenWidth;
-  //screenPos.y = screenPos.y  * uniforms.screenHeight;
+  pos.x = pos.x / pos.w * uniforms.screenWidth;
+  pos.y = pos.y  / pos.w * uniforms.screenHeight;
 
   var size = vec2<f32>(uniforms.screenWidth, uniforms.screenHeight);
 
-  return vec2<f32>(pos.x, pos.y);
-  //return  vec4<f32>(((pos.xyz/pos.w) * 0.5 + 0.5) *  vec3<f32>(size.xy, 1.0), pos.w).xy;
+  //return vec2<f32>(pos.x, pos.y);
+  return  vec4<f32>(((pos.xyz/pos.w) * 0.5 + 0.5) *  vec3<f32>(size, 1.0), pos.w).xy;
 }
 
 @compute @workgroup_size(256, 1)

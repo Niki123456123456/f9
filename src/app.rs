@@ -404,10 +404,9 @@ impl RasterResources {
 
         let mx_ref: &[f32; 16] = projection.as_ref();
         
-        println!("{:?}", projection);
         renderstate.queue.write_buffer(
             &self.uniform_buffer,
-            8,
+            16,
             bytemuck::cast_slice(mx_ref),
         );
         renderstate.queue.write_buffer(
