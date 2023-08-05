@@ -2,4 +2,5 @@
 mod core;
 mod camera;
 mod app;
+mod rendering;
 pub use app::TemplateApp;

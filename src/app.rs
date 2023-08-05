@@ -8,7 +8,7 @@ use glam::{Mat4, Vec3};
 use instant::{Duration, Instant};
 use std::{num::NonZeroU64, sync::Arc};
 
-use crate::camera::Camera;
+use crate::{camera::Camera, rendering::sphere::Renderer};
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)]
@@ -254,6 +254,7 @@ fn build_raster_pass(device: &Arc<Device>, wgpu_render_state: &RenderState) -> R
 impl TemplateApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         let wgpu_render_state = cc.wgpu_render_state.as_ref().unwrap();
+
         let device = &wgpu_render_state.device;
 
         wgpu_render_state
@@ -279,6 +280,12 @@ impl TemplateApp {
             .write()
             .paint_callback_resources
             .insert(screen_pass);
+
+            wgpu_render_state
+            .renderer
+            .write()
+            .paint_callback_resources
+            .insert(crate::rendering::sphere::Renderer::new(device, wgpu_render_state));
 
         app.adapter_info = Some(wgpu_render_state.adapter.get_info());
         app.raster = Some(raster);
@@ -358,6 +365,28 @@ impl eframe::App for TemplateApp {
                         let resources: &TriangleRenderResources2 =
                             paint_callback_resources.get().unwrap();
                         resources.paint2(render_pass);
+                    });
+
+                let callback = egui::PaintCallback {
+                    rect,
+                    callback: Arc::new(cb),
+                };
+
+                //ui.painter().add(callback);
+
+                {let reader = renderstate.renderer.read();
+                let resources: &Renderer = reader.paint_callback_resources.get().unwrap();
+                        resources.prepare(&renderstate.queue, &self.camera.projection_view_matrix);}
+
+                let cb = egui_wgpu::CallbackFn::new()
+                    .prepare(move |device, queue, _encoder, paint_callback_resources| {
+                    
+                        Vec::new()
+                    })
+                    .paint(move |_info, render_pass, paint_callback_resources| {
+                        let resources: &Renderer =
+                            paint_callback_resources.get().unwrap();
+                        resources.paint(render_pass);
                     });
 
                 let callback = egui::PaintCallback {

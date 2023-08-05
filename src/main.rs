@@ -3,11 +3,12 @@
 
 // https://webgpufundamentals.org/webgpu/lessons/webgpu-compute-shaders.html
 
+
 // When compiling natively:
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> eframe::Result<()> {
     env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
-
+    
     let native_options = eframe::NativeOptions{
         //depth_buffer: 8,
         //stencil_buffer: 8,
@@ -19,7 +20,7 @@ fn main() -> eframe::Result<()> {
     eframe::run_native(
         "f9",
         native_options,
-        Box::new(|cc| Box::new(eframe_template::TemplateApp::new(cc))),
+        Box::new(|cc: &eframe::CreationContext<'_>| Box::new(eframe_template::TemplateApp::new(cc))),
     )
 }
 
