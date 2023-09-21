@@ -24,7 +24,7 @@ impl Renderer {
             device,
             state,
             "sphere renderer",
-            include_str!("./../shaders/sphere.wgsl"),
+            include_str!("./../shaders/quad_sphere.wgsl"),
             &layout,
         );
         let buffer = UniformBuffer::new(device, &layout, 4 * 2 + 4 * 16 + 8);
@@ -40,7 +40,8 @@ impl Renderer {
     pub fn paint<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
         render_pass.set_pipeline(&self.pipeline);
         self.buffer.bind(render_pass);
-        render_pass.draw(0..(8 * 8 * 4), 0..1);
+        //render_pass.draw(0..(8 * 8 * 4), 0..1);
+        render_pass.draw(0..(8 * 8 * 6 * 4), 0..1);
     }
 }
 

@@ -18,7 +18,6 @@ fn get_uv(i : u32) -> vec2f {
     let four = u32(4);
     let size = u32(uniforms.size);
     let step = 1.0 / f32(size);
-    let x = i % four;
     var u = f32(i / four / size) * step;
     var v = f32(i / four % size) * step;
     if (i % four == u32(2)){
