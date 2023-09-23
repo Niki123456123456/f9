@@ -1,2 +1,2 @@
-pub mod sphere;
+pub mod renderer;
 pub mod buffer;

@@ -24,7 +24,7 @@ impl Renderer {
             device,
             state,
             "sphere renderer",
-            include_str!("./../shaders/quad_sphere.wgsl"),
+            include_str!("./../shaders/uv_sphere.wgsl"), // quad_sphere
             &layout,
         );
         let buffer = UniformBuffer::new(device, &layout, 4 * 2 + 4 * 16 + 8);
