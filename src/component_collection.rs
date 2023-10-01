@@ -16,11 +16,12 @@ pub struct ComponentArray<T> {
 
 impl<T> ComponentArray<T> {
     pub fn new(
-        data: Vec<Component<T>>,
+        array: Vec<Component<T>>,
         device: &Arc<Device>,
         queue: &wgpu::Queue,
     ) -> ComponentArray<T> {
-        let buffer_size = data.len() * core::mem::size_of::<Component<T>>();
+        let mem_size =core::mem::size_of::<Component<T>>();
+        let buffer_size = array.len() * mem_size;
 
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: None,
@@ -31,14 +32,16 @@ impl<T> ComponentArray<T> {
 
         unsafe {
             let data: &[u8] = core::slice::from_raw_parts(
-                data.as_ptr() as *const u8,
-                data.len() * core::mem::size_of::<T>(),
+                array.as_ptr() as *const u8,
+                array.len() * mem_size,
             );
-            queue.write_buffer(&buffer, 0, bytemuck::cast_slice(&data));
+            queue.write_buffer(&buffer, 0, &data);
+            println!("len {} {} {}", data.len(), mem_size, array.len());
         }
+       
 
         return ComponentArray {
-            array: data,
+            array,
             buffer_size,
             buffer,
         };
