@@ -6,11 +6,16 @@ use crate::{
     camera::Camera,
     component_collection::{ComponentArray, ComponentCollection},
     components::vertex,
+    rendering::{
+        buffer::UniformBuffer,
+        renderer::{get_layout, uniform, storage},
+    },
 };
 
 pub struct ProjectState {
     pub camera: Camera,
     pub components: ComponentCollection,
+    pub uniform_buffer: Arc<UniformBuffer>,
 }
 
 pub struct Project {
@@ -20,19 +25,25 @@ pub struct Project {
 
 impl Project {
     pub fn new(device: &Arc<Device>, queue: &wgpu::Queue) -> Project {
-        let mut axises = vec![];
-        axises.push(vertex::x().notvisible());
-        axises.push(vertex::x());
-        axises.push(vertex::y().notvisible());
-        axises.push(vertex::z());
+        let axises = ComponentArray::new(
+            vec![
+                vertex::x().notvisible(),
+                vertex::x(),
+                vertex::y().notvisible(),
+                vertex::z(),
+            ],
+            device,
+            queue,
+        );
 
+        let layout = get_layout(device, &[uniform(0), storage(1)]);
+        let buffer = UniformBuffer::new(device, &layout, 4 * 2 + 4 * 16 + 8, vec![&axises.buffer]);
         Self {
             name: "New Project".into(),
             state: ProjectState {
                 camera: Camera::default(),
-                components: ComponentCollection {
-                    axises: ComponentArray::new(axises, device, queue),
-                },
+                components: ComponentCollection { axises },
+                uniform_buffer: Arc::new(buffer),
             },
         }
     }

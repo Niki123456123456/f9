@@ -1,56 +1,110 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use eframe::{
     egui_wgpu::RenderState,
     wgpu::{
         self, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType,
-        BufferBindingType, Device, PrimitiveState, RenderPipeline, RenderPipelineDescriptor,
-        ShaderModuleDescriptor, ShaderSource, Face, Features,
+        BufferBindingType, Device, Face, Features, PrimitiveState, RenderPipeline,
+        RenderPipelineDescriptor, ShaderModuleDescriptor, ShaderSource,
     },
 };
 use glam::Mat4;
 
+use crate::project::{self, Project};
+
 use super::buffer::UniformBuffer;
 
-pub struct Renderer {
+pub struct RenderShader {
     pipeline: RenderPipeline,
-    buffer: UniformBuffer,
+    get_draw_count: Box<dyn Fn(&Project) -> u32 + Send + Sync>,
+}
+
+impl RenderShader {
+    pub fn new(
+        device: &Arc<Device>,
+        state: &RenderState,
+        layout: &BindGroupLayout,
+        label: &str,
+        source: &str,
+        get_draw_count: &'static (dyn Fn(&Project) -> u32 + Send + Sync),
+    ) -> Self {
+        Self {
+            pipeline: build_shader(device, state, label, source, &layout),
+            get_draw_count: Box::new(get_draw_count),
+        }
+    }
+}
+
+pub struct Renderer {
+    shaders: Vec<RenderShader>,
 }
 
 impl Renderer {
     pub fn new(device: &Arc<Device>, state: &RenderState) -> Self {
-        let layout = get_layout(device, &[uniform()]);
-        let pipeline = build_shader(
-            device,
-            state,
-            "sphere renderer",
-            include_str!("./../shaders/uv_sphere.wgsl"), // quad_sphere
-            &layout,
-        );
-        let buffer = UniformBuffer::new(device, &layout, 4 * 2 + 4 * 16 + 8);
+        let layout = get_layout(device, &[uniform(0), storage(1)]);
+        let shaders = vec![
+            RenderShader::new(
+                device,
+                state,
+                &layout,
+                "quad_sphere",
+                include_str!("./../shaders/quad_sphere.wgsl"),
+                &|project| 8 * 8 * 6 * 4,
+            ),
+            RenderShader::new(
+                device,
+                state,
+                &layout,
+                "uv_sphere",
+                include_str!("./../shaders/uv_sphere.wgsl"),
+                &|project| 8 * 8 * 4,
+            ),
+            RenderShader::new(
+                device,
+                state,
+                &layout,
+                "axis",
+                include_str!("./../shaders/axis.wgsl"),
+                &|project| project.state.components.axises.array.len() as u32 * 4,
+            ),
+        ];
 
-        Self { pipeline, buffer }
+        Self { shaders }
     }
 
-    pub fn prepare(&self, queue: &wgpu::Queue, projection: &Mat4) {
-        self.buffer.write_mat(queue, 16, projection);
-        self.buffer.write(queue, 0, &[2. as f32, 8. as f32]);
-    }
-
-    pub fn paint<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
-        render_pass.set_pipeline(&self.pipeline);
-        self.buffer.bind(render_pass);
-        //render_pass.draw(0..(8 * 8 * 4), 0..1);
-        render_pass.draw(0..(8 * 8 * 6 * 4), 0..1);
+    pub fn paint<'a>(
+        &'a self,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        project: &'a Project,
+    ) {
+        render_pass.set_bind_group(0, &project.state.uniform_buffer.bind_group , &[]);
+        for shader in self.shaders.iter() {
+            render_pass.set_pipeline(&shader.pipeline);
+            let draw_count = (shader.get_draw_count)(&project);
+            render_pass.draw(0..draw_count, 0..1);
+        }
     }
 }
 
-pub fn uniform() -> BindGroupLayoutEntry {
+pub fn uniform(index: u32) -> BindGroupLayoutEntry {
     BindGroupLayoutEntry {
-        binding: 0,
+        binding: index,
         visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
         ty: wgpu::BindingType::Buffer {
             ty: wgpu::BufferBindingType::Uniform,
+            has_dynamic_offset: false,
+            min_binding_size: None,
+        },
+        count: None,
+    }
+}
+
+pub fn storage(index: u32) -> BindGroupLayoutEntry {
+    BindGroupLayoutEntry {
+        binding: index,
+        visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+        ty: wgpu::BindingType::Buffer {
+            ty: wgpu::BufferBindingType::Storage { read_only: true },
             has_dynamic_offset: false,
             min_binding_size: None,
         },

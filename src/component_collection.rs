@@ -10,8 +10,8 @@ pub struct ComponentCollection {
 
 pub struct ComponentArray<T> {
     pub array: Vec<Component<T>>,
-    buffer_size: usize,
-    buffer: wgpu::Buffer,
+    pub buffer_size: usize,
+    pub buffer: wgpu::Buffer,
 }
 
 impl<T> ComponentArray<T> {
@@ -24,7 +24,7 @@ impl<T> ComponentArray<T> {
 
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: None,
-            usage: BufferUsages::COPY_DST | BufferUsages::UNIFORM,
+            usage: BufferUsages::COPY_DST | BufferUsages::STORAGE,
             mapped_at_creation: false,
             size: buffer_size as u64,
         });

@@ -1,15 +1,15 @@
 use std::sync::Arc;
 
-use eframe::wgpu::{self, BufferDescriptor, BindGroupDescriptor, Device, BufferUsages, BindGroupLayout};
+use eframe::wgpu::{self, BufferDescriptor, BindGroupDescriptor, Device, BufferUsages, BindGroupLayout, Buffer};
 use glam::Mat4;
 
 pub struct UniformBuffer{
-    bind_group: wgpu::BindGroup,
-    uniform_buffer: wgpu::Buffer,
+    pub bind_group: Arc<wgpu::BindGroup>,
+    pub uniform_buffer: wgpu::Buffer,
 }
 
 impl UniformBuffer {
-    pub fn new(device: &Arc<Device>, layout : &BindGroupLayout, size : u64) -> Self{
+    pub fn new(device: &Arc<Device>, layout : &BindGroupLayout, size : u64, buffers: Vec<& Buffer>) -> Self{
     let uniform_buffer = device.create_buffer(&BufferDescriptor {
         label: None,
         size,
@@ -17,18 +17,24 @@ impl UniformBuffer {
         mapped_at_creation: false,
     });
 
+    let mut bind_group_entries = vec![wgpu::BindGroupEntry {
+        binding: 0,
+        resource: uniform_buffer.as_entire_binding(),
+    }];
+    for (i, buffer) in buffers.iter().enumerate() {
+        bind_group_entries.push(wgpu::BindGroupEntry {
+            binding: i as u32 + 1,
+            resource: buffer.as_entire_binding(),
+        })
+    }
+
     let bind_group = device.create_bind_group(&BindGroupDescriptor {
         label: None,
         layout,
-        entries: &[
-            wgpu::BindGroupEntry {
-                binding: 0,
-                resource: uniform_buffer.as_entire_binding(),
-            },
-        ],
+        entries: &bind_group_entries,
     });
 
-    return Self{ bind_group, uniform_buffer};
+    return Self{ bind_group: Arc::new(bind_group), uniform_buffer};
     }
 
     pub fn write<A: bytemuck::NoUninit>(&self, queue: &wgpu::Queue, offset : u64, a: &[A]){
@@ -49,7 +55,4 @@ impl UniformBuffer {
         );
     }
 
-    pub fn bind<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>){
-        render_pass.set_bind_group(0, &self.bind_group, &[]);
-    }
 }
