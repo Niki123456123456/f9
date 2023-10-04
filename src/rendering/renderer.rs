@@ -172,7 +172,21 @@ pub fn build_shader(
         fragment: Some(wgpu::FragmentState {
             module: &shader,
             entry_point: "frag_main",
-            targets: &[Some(state.target_format.into())],
+            targets: //&[Some(state.target_format.into())],
+            &[
+                Some(wgpu::ColorTargetState{
+                format: state.target_format,
+
+                blend: Some(wgpu::BlendState{
+                    color: wgpu::BlendComponent{
+                        src_factor: wgpu::BlendFactor::SrcAlpha,
+                        dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                        operation: wgpu::BlendOperation::Add,},
+                    alpha: wgpu::BlendComponent::OVER
+                }),
+
+                write_mask: wgpu::ColorWrites::ALL,
+            })]
         }),
         primitive: PrimitiveState {
             topology,

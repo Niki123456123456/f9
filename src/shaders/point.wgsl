@@ -13,11 +13,16 @@ struct PointBuffer {
   values: array<Point>,
 };
 
+struct VertexOutput {
+  @builtin(position) position : vec4f,
+  @location(0) vCenter : vec2f,
+};
+
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
 @group(0) @binding(4) var<storage, read> pointBuffer : PointBuffer;
 
 @vertex
-fn vert_main(@builtin(vertex_index) i : u32) -> @builtin(position) vec4f {
+fn vert_main(@builtin(vertex_index) i : u32) -> VertexOutput {
     let point = pointBuffer.values[i / u32(6)];
     let center = uniforms.matrix * vec4f(point.px, point.py, point.pz, 1.0);
 
@@ -41,11 +46,22 @@ fn vert_main(@builtin(vertex_index) i : u32) -> @builtin(position) vec4f {
     pos[3] = point_a;
     pos[4] = point_b;
     pos[5] = point_d;
-    return pos[i % u32(6)];
+    //return pos[i % u32(6)];
+
+    var output : VertexOutput;
+    output.position = pos[i % u32(6)];
+    output.vCenter = vCenter;
+    return output;
 }
 
 @fragment
-fn frag_main(@builtin(position) coord: vec4f) -> @location(0) vec4f {
-  let color = vec4f(1.0, 1.0, 1.0, 1.0);
-  return color;
+fn frag_main( v: VertexOutput) -> @location(0) vec4f {
+    var color = vec4f(1.0, 1.0, 1.0, 1.0);
+
+    let distance = distance(v.position.xy - vec2f(0.0, 18.0), v.vCenter);
+    if (distance > 10.0){
+        color = vec4f(0.0, 0.0, 0.0, 0.0);
+    }
+    
+    return color;
 }

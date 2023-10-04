@@ -329,8 +329,13 @@ impl eframe::App for App {
                     );
                 }
 
+                //println!("{:?}", ui.next_widget_position());
+                
+
                 let (rect, response) =
                     ui.allocate_at_least(ui.available_size(), egui::Sense::drag());
+
+                
 
                 {
                     let mut writer = renderstate.renderer.write();
