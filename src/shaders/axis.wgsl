@@ -1,6 +1,9 @@
 struct Uniforms {
-  radius : f32,
-  size : f32,
+  width : f32,
+  height : f32,
+  camera_orientation_x : f32,
+  camera_orientation_y : f32,
+  camera_orientation_z : f32,
   matrix: mat4x4<f32>,
 };
 struct Vertex {
@@ -22,12 +25,10 @@ struct VertexBuffer {
 
 @vertex
 fn vert_main(@builtin(vertex_index) i : u32) -> @builtin(position) vec4f {
-  let axis = vertexBuffer.values[i / u32(4)];
+  let axis = vertexBuffer.values[i / u32(6)];
   let p = vec3f(axis.px, axis.py, axis.pz);
   let d = vec3f(axis.dx, axis.dy, axis.dz);
-  let l = 100000.0;
-  let pos = p + f32(i % u32(2)) * d * l - f32((i / u32(2)) % u32(2)) * d * l;
-  return uniforms.matrix * vec4f(pos, 1.0);
+  return uniforms.matrix * vec4f(p, 1.0);
 }
 
 @fragment

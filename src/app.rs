@@ -8,7 +8,7 @@ use glam::{Mat4, Vec3};
 use instant::{Duration, Instant};
 use std::{
     num::NonZeroU64,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex}, ops::Sub,
 };
 use std::ops::DerefMut;
 
@@ -344,8 +344,10 @@ impl eframe::App for App {
 
                     update_camera(&mut project.state, rect, ctx);
 
-                    project.state.uniform_buffer.write_mat(&renderstate.queue, 16, &project.state.camera.projection_view_matrix);
-                    project.state.uniform_buffer.write(&renderstate.queue, 0, &[project.state.camera.viewport.width(), project.state.camera.viewport.height()]);
+                    let dir = project.state.camera.target.sub(project.state.camera.position).normalize();
+                    project.state.uniform_buffer.write(&renderstate.queue, 0, &[project.state.camera.viewport.width(), project.state.camera.viewport.height(), dir.x, dir.y, dir.z]);
+                    project.state.uniform_buffer.write_mat(&renderstate.queue, 4*5+8+4, &project.state.camera.projection_view_matrix);
+                    
                 }
 
                 {

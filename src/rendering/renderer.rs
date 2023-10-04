@@ -82,7 +82,7 @@ impl Renderer {
                 "arrow",
                 include_str!("./../shaders/arrow.wgsl"),
                 PrimitiveTopology::LineList,
-                &|project| project.state.components.axises.array.len() as u32,
+                &|project| project.state.components.axises.array.len() as u32 * 6,
             ),
             RenderShader::new(
                 device,

@@ -64,7 +64,7 @@ impl Project {
         );
 
         let layout = get_layout(device, &[uniform(0), storage(1), storage(2), storage(3), storage(4)]);
-        let buffer = UniformBuffer::new(device, &layout, 4 * 2 + 4 * 16 + 8, vec![&axises.buffer, &grids.buffer, &arrows.buffer, &points.buffer]);
+        let buffer = UniformBuffer::new(device, &layout, 4 * 5+4 + 4 * 16 + 8, vec![&axises.buffer, &grids.buffer, &arrows.buffer, &points.buffer]);
         Self {
             name: "New Project".into(),
             state: ProjectState {

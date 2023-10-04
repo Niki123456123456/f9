@@ -1,6 +1,9 @@
 struct Uniforms {
   width : f32,
   height : f32,
+  camera_orientation_x : f32,
+  camera_orientation_y : f32,
+  camera_orientation_z : f32,
   matrix: mat4x4<f32>,
 };
 struct Point {

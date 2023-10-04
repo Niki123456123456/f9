@@ -20,7 +20,7 @@ fn main() -> eframe::Result<()> {
     eframe::run_native(
         "f9",
         native_options,
-        Box::new(|cc: &eframe::CreationContext<'_>| Box::new(eframe_template::App::new(cc))),
+        Box::new(|cc: &eframe::CreationContext<'_>| Box::new(f9::App::new(cc))),
     )
 }
 
@@ -37,7 +37,7 @@ fn main() {
             .start(
                 "the_canvas_id", // hardcode it
                 web_options,
-                Box::new(|cc| Box::new(eframe_template::App::new(cc))),
+                Box::new(|cc| Box::new(f9::App::new(cc))),
             )
             .await
             .expect("failed to start eframe");
