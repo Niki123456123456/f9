@@ -1,18 +1,15 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use eframe::{
     egui_wgpu::RenderState,
     wgpu::{
-        self, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType,
-        BufferBindingType, Device, Face, Features, PrimitiveState, RenderPipeline,
-        RenderPipelineDescriptor, ShaderModuleDescriptor, ShaderSource,
+        self, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, Device,
+        PrimitiveState, RenderPipeline, RenderPipelineDescriptor, ShaderModuleDescriptor,
+        ShaderSource,
     },
 };
-use glam::Mat4;
 
-use crate::project::{self, Project};
-
-use super::buffer::UniformBuffer;
+use crate::project::Project;
 
 pub struct RenderShader {
     pipeline: RenderPipeline,
@@ -41,9 +38,9 @@ pub struct Renderer {
 
 impl Renderer {
     pub fn new(device: &Arc<Device>, state: &RenderState) -> Self {
-        let layout = get_layout(device, &[uniform(0), storage(1)]);
+        let layout = get_layout(device, &[uniform(0), storage(1), storage(2)]);
         let shaders = vec![
-            RenderShader::new(
+            /*RenderShader::new(
                 device,
                 state,
                 &layout,
@@ -58,7 +55,7 @@ impl Renderer {
                 "uv_sphere",
                 include_str!("./../shaders/uv_sphere.wgsl"),
                 &|project| 8 * 8 * 4,
-            ),
+            ),*/
             RenderShader::new(
                 device,
                 state,
@@ -67,17 +64,21 @@ impl Renderer {
                 include_str!("./../shaders/axis.wgsl"),
                 &|project| project.state.components.axises.array.len() as u32 * 4,
             ),
+            RenderShader::new(
+                device,
+                state,
+                &layout,
+                "grid",
+                include_str!("./../shaders/grid.wgsl"),
+                &|project| project.state.components.axises.array.len() as u32 * 11 * 2 * 2,
+            ),
         ];
 
         Self { shaders }
     }
 
-    pub fn paint<'a>(
-        &'a self,
-        render_pass: &mut wgpu::RenderPass<'a>,
-        project: &'a Project,
-    ) {
-        render_pass.set_bind_group(0, &project.state.uniform_buffer.bind_group , &[]);
+    pub fn paint<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>, project: &'a Project) {
+        render_pass.set_bind_group(0, &project.state.uniform_buffer.bind_group, &[]);
         for shader in self.shaders.iter() {
             render_pass.set_pipeline(&shader.pipeline);
             let draw_count = (shader.get_draw_count)(&project);

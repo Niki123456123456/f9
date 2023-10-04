@@ -8,9 +8,9 @@ use glam::{Mat4, Vec3};
 use instant::{Duration, Instant};
 use std::{
     num::NonZeroU64,
-    ops::DerefMut,
     sync::{Arc, Mutex},
 };
+use std::ops::DerefMut;
 
 use crate::{
     camera::{self, Camera},

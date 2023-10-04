@@ -35,14 +35,24 @@ impl Project {
             device,
             queue,
         );
+        let grids = ComponentArray::new(
+            vec![
+                vertex::x().notvisible(),
+                vertex::x().notvisible(),
+                vertex::y(),
+                vertex::z().notvisible(),
+            ],
+            device,
+            queue,
+        );
 
-        let layout = get_layout(device, &[uniform(0), storage(1)]);
-        let buffer = UniformBuffer::new(device, &layout, 4 * 2 + 4 * 16 + 8, vec![&axises.buffer]);
+        let layout = get_layout(device, &[uniform(0), storage(1), storage(2)]);
+        let buffer = UniformBuffer::new(device, &layout, 4 * 2 + 4 * 16 + 8, vec![&axises.buffer, &grids.buffer]);
         Self {
             name: "New Project".into(),
             state: ProjectState {
                 camera: Camera::default(),
-                components: ComponentCollection { axises },
+                components: ComponentCollection { axises, grids },
                 uniform_buffer: Arc::new(buffer),
             },
         }

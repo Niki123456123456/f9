@@ -6,6 +6,7 @@ use crate::components::{component::Component, vertex::Vertex};
 
 pub struct ComponentCollection {
     pub axises: ComponentArray<Vertex>,
+    pub grids: ComponentArray<Vertex>,
 }
 
 pub struct ComponentArray<T> {
@@ -36,7 +37,6 @@ impl<T> ComponentArray<T> {
                 array.len() * mem_size,
             );
             queue.write_buffer(&buffer, 0, &data);
-            println!("len {} {} {}", data.len(), mem_size, array.len());
         }
        
 
