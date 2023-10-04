@@ -340,7 +340,7 @@ impl eframe::App for App {
                     update_camera(&mut project.state, rect, ctx);
 
                     project.state.uniform_buffer.write_mat(&renderstate.queue, 16, &project.state.camera.projection_view_matrix);
-                    project.state.uniform_buffer.write(&renderstate.queue, 0, &[2. as f32, 8. as f32]);
+                    project.state.uniform_buffer.write(&renderstate.queue, 0, &[project.state.camera.viewport.width(), project.state.camera.viewport.height()]);
                 }
 
                 {

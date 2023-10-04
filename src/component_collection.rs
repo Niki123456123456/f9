@@ -2,11 +2,13 @@ use std::{array, sync::Arc};
 
 use eframe::wgpu::{self, BufferUsages, Device};
 
-use crate::components::{component::Component, vertex::Vertex};
+use crate::components::{component::Component, vertex::Vertex, point::Point};
 
 pub struct ComponentCollection {
     pub axises: ComponentArray<Vertex>,
     pub grids: ComponentArray<Vertex>,
+    pub arrows: ComponentArray<Vertex>,
+    pub points: ComponentArray<Point>,
 }
 
 pub struct ComponentArray<T> {

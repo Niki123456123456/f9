@@ -5,7 +5,7 @@ use eframe::{
     wgpu::{
         self, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, Device,
         PrimitiveState, RenderPipeline, RenderPipelineDescriptor, ShaderModuleDescriptor,
-        ShaderSource,
+        ShaderSource, PrimitiveTopology,
     },
 };
 
@@ -22,11 +22,12 @@ impl RenderShader {
         state: &RenderState,
         layout: &BindGroupLayout,
         label: &str,
-        source: &str,
+        source: &str, 
+        topology: PrimitiveTopology,
         get_draw_count: &'static (dyn Fn(&Project) -> u32 + Send + Sync),
     ) -> Self {
         Self {
-            pipeline: build_shader(device, state, label, source, &layout),
+            pipeline: build_shader(device, state, label, source, &layout, topology),
             get_draw_count: Box::new(get_draw_count),
         }
     }
@@ -38,7 +39,7 @@ pub struct Renderer {
 
 impl Renderer {
     pub fn new(device: &Arc<Device>, state: &RenderState) -> Self {
-        let layout = get_layout(device, &[uniform(0), storage(1), storage(2)]);
+        let layout = get_layout(device, &[uniform(0), storage(1), storage(2), storage(3), storage(4)]);
         let shaders = vec![
             /*RenderShader::new(
                 device,
@@ -62,6 +63,7 @@ impl Renderer {
                 &layout,
                 "axis",
                 include_str!("./../shaders/axis.wgsl"),
+                PrimitiveTopology::LineList,
                 &|project| project.state.components.axises.array.len() as u32 * 4,
             ),
             RenderShader::new(
@@ -70,7 +72,26 @@ impl Renderer {
                 &layout,
                 "grid",
                 include_str!("./../shaders/grid.wgsl"),
+                PrimitiveTopology::LineList,
                 &|project| project.state.components.axises.array.len() as u32 * 11 * 2 * 2,
+            ),
+            RenderShader::new(
+                device,
+                state,
+                &layout,
+                "arrow",
+                include_str!("./../shaders/arrow.wgsl"),
+                PrimitiveTopology::LineList,
+                &|project| project.state.components.axises.array.len() as u32,
+            ),
+            RenderShader::new(
+                device,
+                state,
+                &layout,
+                "point",
+                include_str!("./../shaders/point.wgsl"),
+                PrimitiveTopology::TriangleList,
+                &|project| project.state.components.axises.array.len() as u32 * 6,
             ),
         ];
 
@@ -127,7 +148,7 @@ pub fn build_shader(
     state: &RenderState,
     label: &str,
     source: &str,
-    layout: &BindGroupLayout,
+    layout: &BindGroupLayout, topology: wgpu::PrimitiveTopology
 ) -> RenderPipeline {
     let shader = device.create_shader_module(ShaderModuleDescriptor {
         label: Some(label),
@@ -154,7 +175,7 @@ pub fn build_shader(
             targets: &[Some(state.target_format.into())],
         }),
         primitive: PrimitiveState {
-            topology: wgpu::PrimitiveTopology::LineList,
+            topology,
             strip_index_format: None,
             front_face: wgpu::FrontFace::Cw,
             cull_mode: None,

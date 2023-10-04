@@ -31,7 +31,7 @@ fn vert_main(@builtin(vertex_index) i : u32) -> @builtin(position) vec4f {
   let length = 10.0;
   let size = u32(11);
   let axis = vertexBuffer.values[i / u32(size * u32(4))];
-  var p = vec3f(axis.px, axis.py, axis.pz);
+  let p = vec3f(axis.px, axis.py, axis.pz);
   let d = vec3f(axis.dx, axis.dy, axis.dz);
 
   let i2 = i % u32(size * u32(2));
@@ -45,11 +45,12 @@ fn vert_main(@builtin(vertex_index) i : u32) -> @builtin(position) vec4f {
     c1 = double_shift(d);
     c2 = shift(d);
   }
-  p = p 
+
+  let result = p 
     + c1 * a * length * 0.5
     - c1 * (1.0 - a) * length * 0.5
     + c2 * (b - 0.5) * length;
-  return uniforms.matrix * vec4f(p, 1.0);
+  return uniforms.matrix * vec4f(result, 1.0);
 }
 
 @fragment
