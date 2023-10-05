@@ -2,7 +2,7 @@ use std::{array, sync::Arc};
 
 use eframe::wgpu::{self, BufferUsages, Device};
 
-use crate::components::{component::Component, vertex::Vertex, point::Point, line::Line};
+use crate::components::{component::Component, vertex::Vertex, point::Point, line::Line, bezier::Bezier};
 
 pub struct ComponentCollection {
     pub axises: ComponentArray<Vertex>,
@@ -10,6 +10,7 @@ pub struct ComponentCollection {
     pub arrows: ComponentArray<Vertex>,
     pub points: ComponentArray<Point>,
     pub lines: ComponentArray<Line>,
+    pub beziers: ComponentArray<Bezier>,
 }
 
 pub struct ComponentArray<T> {

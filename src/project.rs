@@ -6,7 +6,7 @@ use glam::vec3;
 use crate::{
     camera::Camera,
     component_collection::{ComponentArray, ComponentCollection},
-    components::{line, point, vertex},
+    components::{line, point, vertex, bezier},
     rendering::{
         buffer::UniformBuffer,
         renderer::{get_layout, storage, uniform},
@@ -59,12 +59,16 @@ impl Project {
             vec![
                 point::new(vec3(0.0, 0.0, 0.0)),
                 point::new(vec3(1.0, 1.0, 0.0)),
+                point::new(vec3(1.0, 0.0, 0.0)),
+                point::new(vec3(0.0, 1.0, 0.0)),
             ],
             device,
             queue,
         );
 
         let lines = ComponentArray::new(vec![line::new(0, 1)], device, queue);
+
+        let beziers = ComponentArray::new(vec![bezier::new(0, 3, 2, 1)], device, queue);
 
         let layout = get_layout(
             device,
@@ -75,6 +79,7 @@ impl Project {
                 storage(3),
                 storage(4),
                 storage(5),
+                storage(6),
             ],
         );
         let buffer = UniformBuffer::new(
@@ -87,6 +92,7 @@ impl Project {
                 &arrows.buffer,
                 &points.buffer,
                 &lines.buffer,
+                &beziers.buffer,
             ],
         );
         Self {
@@ -99,6 +105,7 @@ impl Project {
                     arrows,
                     points,
                     lines,
+                    beziers,
                 },
                 uniform_buffer: Arc::new(buffer),
             },
