@@ -1,16 +1,17 @@
 use eframe::{
     egui_wgpu::wgpu::util::DeviceExt,
-    egui_wgpu::{self, wgpu, RenderState},
+    egui_wgpu::{self, wgpu, CallbackTrait, RenderState},
     wgpu::{AdapterInfo, BindGroupLayout, Buffer, BufferDescriptor, BufferUsages, Device, Queue},
 };
 use egui::{epaint::Shadow, vec2, Color32, Margin, Pos2, Rect, Rounding, Stroke, Vec2};
 use glam::{Mat4, Vec3};
 use instant::{Duration, Instant};
+use std::ops::DerefMut;
 use std::{
     num::NonZeroU64,
-    sync::{Arc, Mutex}, ops::Sub,
+    ops::Sub,
+    sync::{Arc, Mutex},
 };
-use std::ops::DerefMut;
 
 use crate::{
     camera::{self, Camera},
@@ -271,7 +272,6 @@ impl App {
         let wgpu_render_state = cc.wgpu_render_state.as_ref().unwrap();
         let device = &wgpu_render_state.device;
 
-
         let mut app: App = if let Some(storage) = cc.storage {
             eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default()
         } else {
@@ -281,18 +281,30 @@ impl App {
         wgpu_render_state
             .renderer
             .write()
-            .paint_callback_resources
+            .callback_resources
             .insert(AppState {
                 projects: vec![Project::new(device, &wgpu_render_state.queue)],
                 selected_project: 0,
-                renderer: crate::rendering::renderer::Renderer::new(
-                    device,
-                    wgpu_render_state,
-                )
+                renderer: crate::rendering::renderer::Renderer::new(device, wgpu_render_state),
             });
 
         app.adapter_info = Some(wgpu_render_state.adapter.get_info());
         return app;
+    }
+}
+
+struct RenderCallback;
+
+impl CallbackTrait for RenderCallback {
+    fn paint<'a>(
+        &'a self,
+        info: egui::PaintCallbackInfo,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        callback_resources: &'a egui_wgpu::CallbackResources,
+    ) {
+        let appstate: &AppState = callback_resources.get().unwrap();
+        let project = &appstate.projects[appstate.selected_project];
+        appstate.renderer.paint(render_pass, project);
     }
 }
 
@@ -319,7 +331,7 @@ impl eframe::App for App {
 
                 {
                     let mut writer = renderstate.renderer.write();
-                    let appstate: &mut AppState = writer.paint_callback_resources.get_mut().unwrap();
+                    let appstate: &mut AppState = writer.callback_resources.get_mut().unwrap();
                     tabcontrol::show_tabs(
                         ui,
                         &mut appstate.projects,
@@ -330,44 +342,42 @@ impl eframe::App for App {
                 }
 
                 //println!("{:?}", ui.next_widget_position());
-                
 
                 let (rect, response) =
                     ui.allocate_at_least(ui.available_size(), egui::Sense::drag());
 
-                
-
                 {
                     let mut writer = renderstate.renderer.write();
-                    let appstate: &mut AppState = writer.paint_callback_resources.get_mut().unwrap();
+                    let appstate: &mut AppState = writer.callback_resources.get_mut().unwrap();
                     let project = &mut appstate.projects[appstate.selected_project];
 
                     update_camera(&mut project.state, rect, ctx);
 
-                    let dir = project.state.camera.target.sub(project.state.camera.position).normalize();
-                    project.state.uniform_buffer.write(&renderstate.queue, 0, &[project.state.camera.viewport.width(), project.state.camera.viewport.height(), dir.x, dir.y, dir.z]);
-                    project.state.uniform_buffer.write_mat(&renderstate.queue, 4*5+8+4, &project.state.camera.projection_view_matrix);
-                    
+                    let dir = project
+                        .state
+                        .camera
+                        .target
+                        .sub(project.state.camera.position)
+                        .normalize();
+                    project.state.uniform_buffer.write(
+                        &renderstate.queue,
+                        0,
+                        &[
+                            project.state.camera.viewport.width(),
+                            project.state.camera.viewport.height(),
+                            dir.x,
+                            dir.y,
+                            dir.z,
+                        ],
+                    );
+                    project.state.uniform_buffer.write_mat(
+                        &renderstate.queue,
+                        4 * 5 + 8 + 4,
+                        &project.state.camera.projection_view_matrix,
+                    );
                 }
 
-                {
-                    let cb = egui_wgpu::CallbackFn::new()
-                        .prepare(move |device, queue, _encoder, paint_callback_resources| {
-                            Vec::new()
-                        })
-                        .paint(move |_info, render_pass, paint_callback_resources| {
-                            let appstate: &AppState = paint_callback_resources.get().unwrap();
-                            let project = &appstate.projects[appstate.selected_project];
-                            appstate.renderer.paint(render_pass, project);
-                        });
-
-                    let callback = egui::PaintCallback {
-                        rect,
-                        callback: Arc::new(cb),
-                    };
-
-                    ui.painter().add(callback);
-                }
+                ui.painter().add(egui_wgpu::Callback::new_paint_callback(rect, RenderCallback));
             });
 
         if let Some(adapter_info) = &self.adapter_info {
