@@ -6,10 +6,10 @@ use glam::vec3;
 use crate::{
     camera::Camera,
     component_collection::{ComponentArray, ComponentCollection},
-    components::{vertex, point},
+    components::{line, point, vertex},
     rendering::{
         buffer::UniformBuffer,
-        renderer::{get_layout, uniform, storage},
+        renderer::{get_layout, storage, uniform},
     },
 };
 
@@ -57,19 +57,49 @@ impl Project {
         );
         let points = ComponentArray::new(
             vec![
-                point::new(vec3(0.0, 0.0, 0.0))
+                point::new(vec3(0.0, 0.0, 0.0)),
+                point::new(vec3(1.0, 1.0, 0.0)),
             ],
             device,
             queue,
         );
 
-        let layout = get_layout(device, &[uniform(0), storage(1), storage(2), storage(3), storage(4)]);
-        let buffer = UniformBuffer::new(device, &layout, 4 * 5+4 + 4 * 16 + 8, vec![&axises.buffer, &grids.buffer, &arrows.buffer, &points.buffer]);
+        let lines = ComponentArray::new(vec![line::new(0, 1)], device, queue);
+
+        let layout = get_layout(
+            device,
+            &[
+                uniform(0),
+                storage(1),
+                storage(2),
+                storage(3),
+                storage(4),
+                storage(5),
+            ],
+        );
+        let buffer = UniformBuffer::new(
+            device,
+            &layout,
+            4 * 5 + 4 + 4 * 16 + 8,
+            vec![
+                &axises.buffer,
+                &grids.buffer,
+                &arrows.buffer,
+                &points.buffer,
+                &lines.buffer,
+            ],
+        );
         Self {
             name: "New Project".into(),
             state: ProjectState {
                 camera: Camera::default(),
-                components: ComponentCollection { axises, grids, arrows, points },
+                components: ComponentCollection {
+                    axises,
+                    grids,
+                    arrows,
+                    points,
+                    lines,
+                },
                 uniform_buffer: Arc::new(buffer),
             },
         }

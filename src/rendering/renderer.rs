@@ -4,8 +4,8 @@ use eframe::{
     egui_wgpu::RenderState,
     wgpu::{
         self, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, Device,
-        PrimitiveState, RenderPipeline, RenderPipelineDescriptor, ShaderModuleDescriptor,
-        ShaderSource, PrimitiveTopology,
+        PrimitiveState, PrimitiveTopology, RenderPipeline, RenderPipelineDescriptor,
+        ShaderModuleDescriptor, ShaderSource,
     },
 };
 
@@ -22,7 +22,7 @@ impl RenderShader {
         state: &RenderState,
         layout: &BindGroupLayout,
         label: &str,
-        source: &str, 
+        source: &str,
         topology: PrimitiveTopology,
         get_draw_count: &'static (dyn Fn(&Project) -> u32 + Send + Sync),
     ) -> Self {
@@ -39,7 +39,17 @@ pub struct Renderer {
 
 impl Renderer {
     pub fn new(device: &Arc<Device>, state: &RenderState) -> Self {
-        let layout = get_layout(device, &[uniform(0), storage(1), storage(2), storage(3), storage(4)]);
+        let layout = get_layout(
+            device,
+            &[
+                uniform(0),
+                storage(1),
+                storage(2),
+                storage(3),
+                storage(4),
+                storage(5),
+            ],
+        );
         let shaders = vec![
             /*RenderShader::new(
                 device,
@@ -83,6 +93,15 @@ impl Renderer {
                 include_str!("./../shaders/point.wgsl"),
                 PrimitiveTopology::TriangleList,
                 &|project| project.state.components.axises.array.len() as u32 * 6,
+            ),
+            RenderShader::new(
+                device,
+                state,
+                &layout,
+                "line",
+                include_str!("./../shaders/line.wgsl"),
+                PrimitiveTopology::LineList,
+                &|project| project.state.components.axises.array.len() as u32 * 2,
             ),
             RenderShader::new(
                 device,
@@ -157,7 +176,8 @@ pub fn build_shader(
     state: &RenderState,
     label: &str,
     source: &str,
-    layout: &BindGroupLayout, topology: wgpu::PrimitiveTopology
+    layout: &BindGroupLayout,
+    topology: wgpu::PrimitiveTopology,
 ) -> RenderPipeline {
     let shader = device.create_shader_module(ShaderModuleDescriptor {
         label: Some(label),
