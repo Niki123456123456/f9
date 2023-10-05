@@ -25,12 +25,27 @@ struct VertexBuffer {
 
 @vertex
 fn vert_main(@builtin(vertex_index) i : u32) -> @builtin(position) vec4f {
-  let axis = vertexBuffer.values[i / u32(4)];
-  let p = vec3f(axis.px, axis.py, axis.pz);
-  let d = vec3f(axis.dx, axis.dy, axis.dz);
-  let l = 100000.0;
-  let pos = p + f32(i % u32(2)) * d * l - f32((i / u32(2)) % u32(2)) * d * l;
-  return uniforms.matrix * vec4f(pos, 1.0);
+  let axis = vertexBuffer.values[i / u32(6)];
+  let a = vec3f(axis.px, axis.py, axis.pz);
+  let arrow_direction = vec3f(axis.dx, axis.dy, axis.dz);
+  let spacing = 0.1;
+  let camera_orientation = vec3f(uniforms.camera_orientation_x, uniforms.camera_orientation_y, uniforms.camera_orientation_z);
+
+  let p1 = a + arrow_direction * (1. - spacing);
+  let p2 = a + arrow_direction * spacing;
+  let p0 = a + arrow_direction * (1. - 2. * spacing);
+  let p3 = p0 + cross(arrow_direction, camera_orientation) * spacing;
+  let p4 = p0 - cross(arrow_direction, camera_orientation) * spacing;
+
+  var pos = array<vec3f, 6>();
+  pos[0] = p1;
+  pos[1] = p2;
+  pos[2] = p1;
+  pos[3] = p3;
+  pos[4] = p1;
+  pos[5] = p4;
+
+  return uniforms.matrix * vec4f(pos[i % u32(6)], 1.0);
 }
 
 @fragment
