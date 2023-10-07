@@ -49,6 +49,7 @@ impl Renderer {
                 storage(4),
                 storage(5),
                 storage(6),
+                storage(7),
             ],
         );
         let shaders = vec![
@@ -110,6 +111,15 @@ impl Renderer {
                 &layout,
                 "bezier",
                 include_str!("./../shaders/bezier.wgsl"),
+                PrimitiveTopology::LineList,
+                &|project| project.state.components.beziers.array.len() as u32 * 2 * 51,
+            ),
+            RenderShader::new(
+                device,
+                state,
+                &layout,
+                "circle",
+                include_str!("./../shaders/circle.wgsl"),
                 PrimitiveTopology::LineList,
                 &|project| project.state.components.beziers.array.len() as u32 * 2 * 51,
             ),
