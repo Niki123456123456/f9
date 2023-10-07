@@ -1,5 +1,3 @@
-use std::sync::{Arc, Mutex};
-
 use egui::*;
 
 pub fn show_tabs<T>(

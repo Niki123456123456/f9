@@ -3,13 +3,33 @@ use std::sync::Arc;
 use eframe::{
     egui_wgpu::RenderState,
     wgpu::{
-        self, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, Device,
-        PrimitiveState, PrimitiveTopology, RenderPipeline, RenderPipelineDescriptor,
+        self, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, ComputePipeline,
+        Device, PrimitiveState, PrimitiveTopology, RenderPipeline, RenderPipelineDescriptor,
         ShaderModuleDescriptor, ShaderSource,
     },
 };
 
 use crate::project::Project;
+
+pub struct ComputeShader {
+    pipeline: ComputePipeline,
+    get_draw_count: Box<dyn Fn(&Project) -> (u32, u32, u32) + Send + Sync>,
+}
+
+impl ComputeShader {
+    pub fn new(
+        device: &Arc<Device>,
+        layout: &BindGroupLayout,
+        label: &str,
+        source: &str,
+        get_draw_count: &'static (dyn Fn(&Project) -> (u32, u32, u32) + Send + Sync),
+    ) -> Self {
+        Self {
+            pipeline: build_compute_shader(device, label, source, layout),
+            get_draw_count: Box::new(get_draw_count),
+        }
+    }
+}
 
 pub struct RenderShader {
     pipeline: RenderPipeline,
@@ -27,7 +47,7 @@ impl RenderShader {
         get_draw_count: &'static (dyn Fn(&Project) -> u32 + Send + Sync),
     ) -> Self {
         Self {
-            pipeline: build_shader(device, state, label, source, &layout, topology),
+            pipeline: build_shader(device, state, label, source, layout, topology),
             get_draw_count: Box::new(get_draw_count),
         }
     }
@@ -35,6 +55,7 @@ impl RenderShader {
 
 pub struct Renderer {
     shaders: Vec<RenderShader>,
+    compute_shaders: Vec<ComputeShader>,
 }
 
 impl Renderer {
@@ -50,6 +71,20 @@ impl Renderer {
                 storage(5),
                 storage(6),
                 storage(7),
+            ],
+        );
+
+        let compute_layout = get_layout(
+            device,
+            &[
+                uniform(0),
+                storage_writeable(1),
+                storage_writeable(2),
+                storage_writeable(3),
+                storage_writeable(4),
+                storage_writeable(5),
+                storage_writeable(6),
+                storage_writeable(7),
             ],
         );
         let shaders = vec![
@@ -143,7 +178,27 @@ impl Renderer {
             ),
         ];
 
-        Self { shaders }
+        let compute_shaders = vec![ComputeShader::new(
+            device,
+            &compute_layout,
+            "line_com",
+            include_str!("./../shaders/line_com.wgsl"),
+            &|project| (project.state.components.lines.array.len() as u32, 1, 1),
+        )];
+
+        Self {
+            shaders,
+            compute_shaders,
+        }
+    }
+
+    pub fn compute<'a>(&'a self, mut pass:  wgpu::ComputePass<'a>, project: &'a Project) {
+        pass.set_bind_group(0, &project.state.uniform_buffer.bind_group, &[]);
+        for shader in self.compute_shaders.iter() {
+            pass.set_pipeline(&shader.pipeline);
+            let draw_count = (shader.get_draw_count)(&project);
+            pass.dispatch_workgroups(draw_count.0, draw_count.1, draw_count.2);
+        }
     }
 
     pub fn paint<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>, project: &'a Project) {
@@ -182,6 +237,19 @@ pub fn storage(index: u32) -> BindGroupLayoutEntry {
     }
 }
 
+pub fn storage_writeable(index: u32) -> BindGroupLayoutEntry {
+    BindGroupLayoutEntry {
+        binding: index,
+        visibility: wgpu::ShaderStages::COMPUTE,
+        ty: wgpu::BindingType::Buffer {
+            ty: wgpu::BufferBindingType::Storage { read_only: false },
+            has_dynamic_offset: false,
+            min_binding_size: None,
+        },
+        count: None,
+    }
+}
+
 pub fn get_layout(device: &Arc<Device>, buffers: &[BindGroupLayoutEntry]) -> BindGroupLayout {
     let bind_group_layout: BindGroupLayout =
         device.create_bind_group_layout(&BindGroupLayoutDescriptor {
@@ -189,6 +257,32 @@ pub fn get_layout(device: &Arc<Device>, buffers: &[BindGroupLayoutEntry]) -> Bin
             entries: buffers,
         });
     return bind_group_layout;
+}
+
+pub fn build_compute_shader(
+    device: &Arc<Device>,
+    label: &str,
+    source: &str,
+    layout: &BindGroupLayout,
+) -> ComputePipeline {
+    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some(label),
+        source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(source)).into(),
+    });
+
+    let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+        label: Some(label),
+        layout: Some(
+            &device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some(label),
+                bind_group_layouts: &[&layout],
+                push_constant_ranges: &[],
+            }),
+        ),
+        module: &shader,
+        entry_point: "main",
+    });
+    return pipeline;
 }
 
 pub fn build_shader(

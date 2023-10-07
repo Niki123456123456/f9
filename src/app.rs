@@ -377,7 +377,31 @@ impl eframe::App for App {
                     );
                 }
 
-                ui.painter().add(egui_wgpu::Callback::new_paint_callback(rect, RenderCallback));
+                {
+                    let mut encoder = renderstate.device.create_command_encoder(
+                        &wgpu::CommandEncoderDescriptor {
+                            label: Some("Compute Encoder"),
+                        },
+                    );
+                    {
+                        let mut pass =
+                            encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                                label: Some("Compute Pass"),
+                            });
+                        
+
+                        let mut writer = renderstate.renderer.write();
+                        let appstate: &mut AppState = writer.callback_resources.get_mut().unwrap();
+                        let project = &appstate.projects[appstate.selected_project];
+                        appstate.renderer.compute( pass, project);
+                    }
+                    renderstate.queue.submit(Some(encoder.finish()));
+                }
+
+                ui.painter().add(egui_wgpu::Callback::new_paint_callback(
+                    rect,
+                    RenderCallback,
+                ));
             });
 
         if let Some(adapter_info) = &self.adapter_info {
