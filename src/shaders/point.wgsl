@@ -65,9 +65,13 @@ fn vert_main(@builtin(vertex_index) i : u32) -> VertexOutput {
 fn frag_main( v: VertexOutput) -> @location(0) vec4f {
     var color = vec4f(1.0, 1.0, 1.0, 1.0);
 
+    if ((v.flags & 2) == 2){ // hover
+      color = vec4f(1.0, 0.0, 0.0, 1.0);
+    }
+
     let distance = distance(v.position.xy - vec2f(0.0, uniforms.height_top), v.vCenter);
     if (distance > 5.0){
-        color = vec4f(0.0, 0.0, 0.0, 0.0);
+      color = vec4f(0.0, 0.0, 0.0, 0.0);
     }
     
     return color;

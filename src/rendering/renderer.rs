@@ -178,13 +178,22 @@ impl Renderer {
             ),
         ];
 
-        let compute_shaders = vec![ComputeShader::new(
-            device,
-            &compute_layout,
-            "line_com",
-            include_str!("./../shaders/line_com.wgsl"),
-            &|project| (project.state.components.lines.array.len() as u32, 1, 1),
-        )];
+        let compute_shaders = vec![
+            ComputeShader::new(
+                device,
+                &compute_layout,
+                "point_com",
+                include_str!("./../shaders/point_com.wgsl"),
+                &|project| (project.state.components.points.array.len() as u32, 1, 1),
+            ),
+            ComputeShader::new(
+                device,
+                &compute_layout,
+                "line_com",
+                include_str!("./../shaders/line_com.wgsl"),
+                &|project| (project.state.components.lines.array.len() as u32, 1, 1),
+            ),
+        ];
 
         Self {
             shaders,
@@ -192,7 +201,7 @@ impl Renderer {
         }
     }
 
-    pub fn compute<'a>(&'a self, mut pass:  wgpu::ComputePass<'a>, project: &'a Project) {
+    pub fn compute<'a>(&'a self, mut pass: wgpu::ComputePass<'a>, project: &'a Project) {
         pass.set_bind_group(0, &project.state.uniform_buffer.compute_bind_group, &[]);
         for shader in self.compute_shaders.iter() {
             pass.set_pipeline(&shader.pipeline);
