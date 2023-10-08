@@ -109,6 +109,8 @@ impl eframe::App for App {
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        //ctx.set_pixels_per_point(1.0);
+        
         egui::CentralPanel::default()
             .frame(egui::Frame {
                 inner_margin: Margin::same(0.),
@@ -168,7 +170,7 @@ impl eframe::App for App {
                         &[
                             project.state.camera.viewport.width(),
                             project.state.camera.viewport.height(),
-                            rect.top(),
+                            rect.top() * ctx.pixels_per_point(),
                             camera_dir.x,
                             camera_dir.y,
                             camera_dir.z,

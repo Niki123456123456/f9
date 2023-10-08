@@ -7,9 +7,7 @@
 // Icosphere Quadsphere UVsphere
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> eframe::Result<()> {
-
-
-    env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
+    env_logger::init();
     
     let native_options = eframe::NativeOptions{
         depth_buffer: 32,
