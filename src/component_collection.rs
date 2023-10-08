@@ -8,6 +8,7 @@ pub struct ComponentCollection {
     pub axises: ComponentArray<Vertex>,
     pub grids: ComponentArray<Vertex>,
     pub arrows: ComponentArray<Vertex>,
+    pub arrow_planes: ComponentArray<Vertex>,
     pub points: ComponentArray<Point>,
     pub lines: ComponentArray<Line>,
     pub beziers: ComponentArray<Bezier>,

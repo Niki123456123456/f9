@@ -79,6 +79,16 @@ impl Project {
 
         let beziers = ComponentArray::new(vec![bezier::new(0, 3, 2, 1)], device, queue);
 
+        let arrow_planes = ComponentArray::new(
+            vec![
+                vertex::x().notvisible(),
+                vertex::y().notvisible(),
+                vertex::z().notvisible(),
+            ],
+            device,
+            queue,
+        );
+
         let layout = get_layout(
             device,
             &[
@@ -90,6 +100,7 @@ impl Project {
                 storage(5),
                 storage(6),
                 storage(7),
+                storage(8),
             ],
         );
 
@@ -104,6 +115,7 @@ impl Project {
                 storage_writeable(5),
                 storage_writeable(6),
                 storage_writeable(7),
+                storage_writeable(8),
             ],
         );
 
@@ -119,6 +131,7 @@ impl Project {
                 &lines.buffer,
                 &beziers.buffer,
                 &circles.buffer,
+                &arrow_planes.buffer,
             ],
         );
         Self {
@@ -129,6 +142,7 @@ impl Project {
                     axises,
                     grids,
                     arrows,
+                    arrow_planes,
                     points,
                     lines,
                     beziers,

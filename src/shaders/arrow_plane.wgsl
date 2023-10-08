@@ -27,9 +27,13 @@ struct Vertex {
 struct VertexBuffer {
   values: array<Vertex>,
 };
+struct VertexOutput {
+  @builtin(position) position : vec4f,
+  @location(0) flags : i32,
+};
 
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
-@group(0) @binding(3) var<storage, read> vertexBuffer : VertexBuffer;
+@group(0) @binding(8) var<storage, read> vertexBuffer : VertexBuffer;
 
 fn shift(v : vec3f) -> vec3f{
     return vec3f(v.z, v.x, v.y);
@@ -40,14 +44,14 @@ fn double_shift(v : vec3f)-> vec3f{
 
 
 @vertex
-fn vert_main(@builtin(vertex_index) i : u32) -> @builtin(position) vec4f {
-    let axis = vertexBuffer.values[i / u32(6)];
+fn vert_main(@builtin(vertex_index) i : u32) -> VertexOutput {
+    let arrow = vertexBuffer.values[i / u32(6)];
 
     let scale_factor = 1.0;
     let width = 0.4;
 
-    let direction = vec3f(axis.dx, axis.dy, axis.dz);
-    let position = vec3f(axis.px, axis.py, axis.pz);
+    let direction = vec3f(arrow.dx, arrow.dy, arrow.dz);
+    let position = vec3f(arrow.px, arrow.py, arrow.pz);
     let offset = (shift(direction) + shift(shift(direction))) * scale_factor * 0.1;
     let origin = position + offset;
     
@@ -64,11 +68,17 @@ fn vert_main(@builtin(vertex_index) i : u32) -> @builtin(position) vec4f {
     pos[4] = b;
     pos[5] = d;
 
-    return uniforms.matrix * vec4f(pos[i % u32(6)], 1.0);
+  var output : VertexOutput;
+  output.position = uniforms.matrix * vec4f(pos[i % u32(6)], 1.0);
+  output.flags = arrow.flags;
+  return output;
 }
 
 @fragment
-fn frag_main(@builtin(position) coord: vec4f) -> @location(0) vec4f {
-  let color = vec4f(1.0, 1.0, 1.0, 1.0);
+fn frag_main(v: VertexOutput) -> @location(0) vec4f {
+  var color = vec4f(1.0, 1.0, 1.0, 1.0);
+  if ((v.flags & 2) == 2){ // hover
+    color =  vec4f(1.0, 0.0, 0.0, 1.0);
+  }
   return color;
 }

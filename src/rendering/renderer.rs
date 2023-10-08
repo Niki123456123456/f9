@@ -71,6 +71,7 @@ impl Renderer {
                 storage(5),
                 storage(6),
                 storage(7),
+                storage(8),
             ],
         );
 
@@ -85,6 +86,7 @@ impl Renderer {
                 storage_writeable(5),
                 storage_writeable(6),
                 storage_writeable(7),
+                storage_writeable(8),
             ],
         );
         let shaders = vec![
@@ -212,6 +214,13 @@ impl Renderer {
                 &compute_layout,
                 "arrow_com",
                 include_str!("./../shaders/arrow_com.wgsl"),
+                &|project| (project.state.components.arrows.array.len() as u32, 1, 1),
+            ),
+            ComputeShader::new(
+                device,
+                &compute_layout,
+                "arrow_plane_com",
+                include_str!("./../shaders/arrow_plane_com.wgsl"),
                 &|project| (project.state.components.arrows.array.len() as u32, 1, 1),
             ),
         ];
