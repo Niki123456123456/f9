@@ -7,5 +7,7 @@ pub mod ui;
 pub mod project;
 pub mod component_collection;
 pub mod components;
+pub mod commands;
+pub mod dispatchers;
 
 pub use app::App;

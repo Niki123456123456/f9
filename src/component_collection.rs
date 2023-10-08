@@ -52,4 +52,68 @@ impl<T> ComponentArray<T> {
             buffer,
         };
     }
+
+
+    pub fn push_or_update<Y, X>(&mut self, index: &mut Option<usize>, insert: X, update: Y) -> usize
+    where
+        X: FnOnce() -> Component<T>,
+        Y: FnOnce(&mut Component<T>),
+    {
+        if let Some(index) = index {
+            if let Some(()) = self.update(*index, update) {
+                return *index;
+            }
+        }
+        let i = self.push((insert)());
+        *index = Some(i);
+        return i;
+    }
+
+    pub fn update<Y, X>(&mut self, index: usize, func: Y) -> Option<X>
+    where
+        Y: FnOnce(&mut Component<T>) -> X,
+    {
+        if let Some(component) = self.array.get_mut(index) {
+            let x = (func)(component);
+            unsafe {
+                let single_size = std::mem::size_of::<Component<T>>();
+                let size = (single_size * index) as i32;
+                //println!("update {} of {}", size, self.buffer_size);
+                let data = std::slice::from_raw_parts(
+                    component as *const Component<T> as *const u8,
+                    single_size,
+                );
+
+                // todo write data to buffer
+            }
+            return Some(x);
+        }
+        return None;
+    }
+
+    fn get_needed_buffer_size(&self) -> usize {
+        return self.array.len() * core::mem::size_of::<Component<T>>();
+    }
+
+    pub fn push(&mut self, component: Component<T>) -> usize {
+        self.array.push(component);
+
+        let needed_buffer_size = self.get_needed_buffer_size();
+        if needed_buffer_size > self.buffer_size {
+            self.resize_buffer(needed_buffer_size);
+        }
+
+        let index = self.array.len() - 1;
+        self.update(index, |c| {});
+        return index;
+    }
+
+    fn resize_buffer(&mut self, new_size: usize) {
+        unsafe {
+            // todo recreate buffer
+        }
+
+        //println!("update buffer {} -> {}", self.buffer_size, new_size);
+        self.buffer_size = new_size;
+    }
 }

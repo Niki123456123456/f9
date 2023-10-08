@@ -1,9 +1,12 @@
 use eframe::{
     egui_wgpu::wgpu::util::DeviceExt,
-    egui_wgpu::{self, wgpu, CallbackTrait, RenderState, CallbackResources},
-    wgpu::{AdapterInfo, BindGroupLayout, Buffer, BufferDescriptor, BufferUsages, Device, Queue, RenderPassDescriptor, RenderPassColorAttachment},
+    egui_wgpu::{self, wgpu, CallbackResources, CallbackTrait, RenderState},
+    wgpu::{
+        AdapterInfo, BindGroupLayout, Buffer, BufferDescriptor, BufferUsages, Device, Queue,
+        RenderPassColorAttachment, RenderPassDescriptor,
+    },
 };
-use egui::{epaint::Shadow, vec2, Color32, Margin, Pos2, Rect, Rounding, Stroke, Vec2};
+use egui::{epaint::Shadow, vec2, Color32, Margin, Pos2, Rect, Response, Rounding, Stroke, Vec2};
 use glam::{Mat4, Vec3};
 use instant::{Duration, Instant};
 use std::ops::DerefMut;
@@ -16,14 +19,15 @@ use std::{
 use crate::{
     camera::{self, Camera},
     project::{self, Project, ProjectState},
-    rendering::renderer::{Renderer, self},
-    ui::tabcontrol,
+    rendering::renderer::{self, Renderer},
+    ui::{tabcontrol, main_menu::draw_commands}, commands::command::{Command, get_commands},
 };
 
 pub struct AppState {
     pub projects: Vec<Project>,
     pub selected_project: usize,
     pub renderer: Renderer,
+    
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -37,6 +41,8 @@ pub struct App {
     raster: Option<RasterResources>,
     #[serde(skip)]
     pub selected_project: usize,
+    #[serde(skip)]
+    pub commands: Vec<Command>,
 }
 
 impl Default for App {
@@ -46,10 +52,10 @@ impl Default for App {
             last_render_time: Instant::now(),
             raster: None,
             selected_project: 0,
+            commands: get_commands(),
         }
     }
 }
-
 
 impl App {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
@@ -87,7 +93,6 @@ impl CallbackTrait for RenderCallback {
         _egui_encoder: &mut wgpu::CommandEncoder,
         _callback_resources: &mut CallbackResources,
     ) -> Vec<wgpu::CommandBuffer> {
-        //_egui_encoder.begin_render_pass(&RenderPassDescriptor{ label: Some("Test Label"), color_attachments: &[Some(RenderPassColorAttachment{ view: todo!(), resolve_target: todo!(), ops: todo!() })], depth_stencil_attachment: todo!() });
         return Vec::new();
     }
 
@@ -109,8 +114,6 @@ impl eframe::App for App {
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        //ctx.set_pixels_per_point(1.0);
-        
         egui::CentralPanel::default()
             .frame(egui::Frame {
                 inner_margin: Margin::same(0.),
@@ -126,96 +129,32 @@ impl eframe::App for App {
 
                 let renderstate = _frame.wgpu_render_state().unwrap();
 
-                {
-                    let mut writer = renderstate.renderer.write();
-                    let appstate: &mut AppState = writer.callback_resources.get_mut().unwrap();
-                    tabcontrol::show_tabs(
-                        ui,
-                        &mut appstate.projects,
-                        &mut appstate.selected_project,
-                        |p: &Project| p.name.clone(),
-                        || Project::new(&renderstate.device, &renderstate.queue),
-                    );
-                }
-
-
-                let (rect, response) =
-                    ui.allocate_at_least(ui.available_size(), egui::Sense::drag());
-
+                tabcontrolheader(renderstate, ui);
 
                 {
                     let mut writer = renderstate.renderer.write();
                     let appstate: &mut AppState = writer.callback_resources.get_mut().unwrap();
                     let project = &mut appstate.projects[appstate.selected_project];
 
-                    if let Some(pos) = response.hover_pos() {
-                        project.state.hover_pos = glam::vec2(
-                            pos.x * ctx.pixels_per_point(),
-                            pos.y * ctx.pixels_per_point() - rect.top() * ctx.pixels_per_point(),
-                        );
-                    }
-
-                    update_camera(&mut project.state, rect, ctx);
-
-                    let camera_dir = project
-                        .state
-                        .camera
-                        .target
-                        .sub(project.state.camera.position)
-                        .normalize();
-
-                    project.state.uniform_buffer.write(
-                        &renderstate.queue,
-                        0,
-                        &[
-                            project.state.camera.viewport.width(),
-                            project.state.camera.viewport.height(),
-                            rect.top() * ctx.pixels_per_point(),
-                            camera_dir.x,
-                            camera_dir.y,
-                            camera_dir.z,
-                            project.state.hover_pos.x,
-                            project.state.camera.viewport.height() - project.state.hover_pos.y,
-                            project.state.camera.ray.origin.x,
-                            project.state.camera.ray.origin.y,
-                            project.state.camera.ray.origin.z,
-                            project.state.camera.ray.direction.x,
-                            project.state.camera.ray.direction.y,
-                            project.state.camera.ray.direction.z,
-                        ],
-                    );
-                    project.state.uniform_buffer.write_mat(
-                        &renderstate.queue,
-                        4 * 16,
-                        &project.state.camera.projection_view_matrix,
-                    );
+                    draw_commands(ui, project, &self.commands);
                 }
+
+                let (rect, response) =
+                    ui.allocate_at_least(ui.available_size(), egui::Sense::drag());
 
                 {
-                    let mut encoder = renderstate.device.create_command_encoder(
-                        &wgpu::CommandEncoderDescriptor {
-                            label: Some("Compute Encoder"),
-                        },
-                    );
-                    {
-                        let mut pass =
-                            encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                                label: Some("Compute Pass"),
-                            });
-                        
+                    let mut writer = renderstate.renderer.write();
+                    let appstate: &mut AppState = writer.callback_resources.get_mut().unwrap();
+                    let project = &mut appstate.projects[appstate.selected_project];
 
-                        let mut writer = renderstate.renderer.write();
-                        let appstate: &mut AppState = writer.callback_resources.get_mut().unwrap();
-                        let project = &appstate.projects[appstate.selected_project];
-                        appstate.renderer.compute( pass, project);
-                    }
-                    renderstate.queue.submit(Some(encoder.finish()));
+                    update_camera(&mut project.state, rect, response, ctx);
+                    flush_buffer(project, renderstate, rect, ctx);
                 }
+                run_compute_pass(renderstate);
 
-                ui.painter().add(egui_wgpu::Callback::new_paint_callback(
-                    rect,
-                    RenderCallback,
-                ));
+                
+
+                run_render_pass(ui, rect);
             });
 
         if let Some(adapter_info) = &self.adapter_info {
@@ -238,7 +177,87 @@ impl eframe::App for App {
     }
 }
 
-fn update_camera(project: &mut ProjectState, rect: Rect, ctx: &egui::Context) {
+fn run_render_pass(ui: &mut egui::Ui, rect: Rect) {
+    ui.painter().add(egui_wgpu::Callback::new_paint_callback(
+        rect,
+        RenderCallback,
+    ));
+}
+
+fn flush_buffer(project: &mut Project, renderstate: &RenderState, rect: Rect, ctx: &egui::Context) {
+    let camera_dir = project
+        .state
+        .camera
+        .target
+        .sub(project.state.camera.position)
+        .normalize();
+
+    project.state.uniform_buffer.write(
+        &renderstate.queue,
+        0,
+        &[
+            project.state.camera.viewport.width(),
+            project.state.camera.viewport.height(),
+            rect.top() * ctx.pixels_per_point(),
+            camera_dir.x,
+            camera_dir.y,
+            camera_dir.z,
+            project.state.hover_pos.x,
+            project.state.camera.viewport.height() - project.state.hover_pos.y,
+            project.state.camera.ray.origin.x,
+            project.state.camera.ray.origin.y,
+            project.state.camera.ray.origin.z,
+            project.state.camera.ray.direction.x,
+            project.state.camera.ray.direction.y,
+            project.state.camera.ray.direction.z,
+        ],
+    );
+    project.state.uniform_buffer.write_mat(
+        &renderstate.queue,
+        4 * 16,
+        &project.state.camera.projection_view_matrix,
+    );
+}
+
+fn run_compute_pass(renderstate: &RenderState) {
+    let mut encoder = renderstate
+        .device
+        .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Compute Encoder"),
+        });
+    {
+        let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+            label: Some("Compute Pass"),
+        });
+
+        let mut writer = renderstate.renderer.write();
+        let appstate: &mut AppState = writer.callback_resources.get_mut().unwrap();
+        let project = &appstate.projects[appstate.selected_project];
+        appstate.renderer.compute(pass, project);
+    }
+    renderstate.queue.submit(Some(encoder.finish()));
+}
+
+fn tabcontrolheader(renderstate: &RenderState, ui: &mut egui::Ui) {
+    let mut writer = renderstate.renderer.write();
+    let appstate: &mut AppState = writer.callback_resources.get_mut().unwrap();
+    tabcontrol::show_tabs(
+        ui,
+        &mut appstate.projects,
+        &mut appstate.selected_project,
+        |p: &Project| p.name.clone(),
+        || Project::new(&renderstate.device, &renderstate.queue),
+    );
+}
+
+fn update_camera(project: &mut ProjectState, rect: Rect, response: Response, ctx: &egui::Context) {
+    if let Some(pos) = response.hover_pos() {
+        project.hover_pos = glam::vec2(
+            pos.x * ctx.pixels_per_point(),
+            pos.y * ctx.pixels_per_point() - rect.top() * ctx.pixels_per_point(),
+        );
+    }
+
     project.camera.viewport = Rect {
         min: Pos2 {
             x: rect.min.x * ctx.pixels_per_point(),
@@ -355,24 +374,3 @@ fn write_buffer<T>(array: &[T], queue: &Queue, buffer: &Buffer) {
     }
 }
 
-struct TriangleRenderResources2 {
-    pipeline: wgpu::RenderPipeline,
-    bind_group: wgpu::BindGroup,
-    uniform_buffer: wgpu::Buffer,
-}
-impl TriangleRenderResources2 {
-    fn set_size(&self, _device: &wgpu::Device, queue: &wgpu::Queue, width: f32, height: f32) {
-        // Update our uniform buffer with the angle from the UI
-        queue.write_buffer(
-            &self.uniform_buffer,
-            0,
-            bytemuck::cast_slice(&[width, height]),
-        );
-    }
-
-    fn paint2<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
-        render_pass.set_pipeline(&self.pipeline);
-        render_pass.set_bind_group(0, &self.bind_group, &[]);
-        render_pass.draw(0..6, 0..1);
-    }
-}

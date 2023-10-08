@@ -1,7 +1,9 @@
-use std::sync::Arc;
+use std::{sync::Arc, collections::HashMap};
 
+use async_channel::{Sender, Receiver};
 use eframe::wgpu::{self, Device};
 use glam::{vec3, Vec2};
+use uuid::Uuid;
 
 use crate::{
     camera::Camera,
@@ -10,7 +12,7 @@ use crate::{
     rendering::{
         buffer::UniformBuffer,
         renderer::{get_layout, storage, uniform, storage_writeable},
-    },
+    }, dispatchers::dispatcher::{DispatcherEvent, Disp},
 };
 
 pub struct ProjectState {
@@ -18,11 +20,17 @@ pub struct ProjectState {
     pub components: ComponentCollection,
     pub uniform_buffer: Arc<UniformBuffer>,
     pub hover_pos : Vec2,
+
+    pub is_mouse_clicked : bool,
 }
 
 pub struct Project {
     pub name: String,
     pub state: ProjectState,
+
+    pub dispatchers: HashMap<Uuid, Disp>,
+    pub sender: Sender< DispatcherEvent>,
+    pub receiver: Receiver<DispatcherEvent>,
 }
 
 impl Project {
@@ -134,7 +142,16 @@ impl Project {
                 &arrow_planes.buffer,
             ],
         );
+
+        let (s, r): (Sender<DispatcherEvent>, Receiver<DispatcherEvent>) =
+        async_channel::unbounded();
+
+
         Self {
+            dispatchers: HashMap::new(),
+            sender: s,
+            receiver: r,
+
             name: "New Project".into(),
             state: ProjectState {
                 camera: Camera::default(),
@@ -150,6 +167,8 @@ impl Project {
                 },
                 uniform_buffer: Arc::new(buffer),
                 hover_pos: Vec2::ZERO,
+
+                is_mouse_clicked: false
             },
         }
     }
