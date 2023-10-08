@@ -7,6 +7,12 @@ struct Uniforms {
   camera_orientation_z : f32,
   mouse_x : f32,
   mouse_y : f32,
+  camera_origin_x : f32,
+  camera_origin_y : f32,
+  camera_origin_z : f32,
+  camera_orient_x : f32,
+  camera_orient_y : f32,
+  camera_orient_z : f32,
   matrix: mat4x4<f32>,
 };
 struct Point {
@@ -25,9 +31,14 @@ struct Circle {
   orientation_y : f32,
   orientation_z : f32,
   heightfactor: f32,
+  flags : i32,
 }
 struct CircleBuffer {
   values: array<Circle>,
+};
+struct VertexOutput {
+  @builtin(position) position : vec4f,
+  @location(0) flags : i32,
 };
 
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
@@ -73,17 +84,24 @@ fn get_position(t : f32, center : vec3f, radius : f32, orientation : vec3f) -> v
 }
 
 @vertex
-fn vert_main(@builtin(vertex_index) i : u32) -> @builtin(position) vec4f {
+fn vert_main(@builtin(vertex_index) i : u32) -> VertexOutput {
   let circle = circleBuffer.values[i / u32(51)];
   let t = f32(i % u32(51)) / 50.0;
   let center = vec3f(pointBuffer.values[circle.center].px, pointBuffer.values[circle.center].py, pointBuffer.values[circle.center].pz);
   let radius = circle.radius;
   let orientation = vec3f(circle.orientation_x, circle.orientation_y, circle.orientation_z);
-  return uniforms.matrix * vec4f(get_position(t, center, radius, orientation), 1.0);
+
+  var output : VertexOutput;
+  output.position = uniforms.matrix * vec4f(get_position(t, center, radius, orientation), 1.0);
+  output.flags = circle.flags;
+  return output;
 }
 
 @fragment
-fn frag_main(@builtin(position) coord: vec4f) -> @location(0) vec4f {
-  let color = vec4f(1.0, 1.0, 1.0, 1.0);
+fn frag_main(v: VertexOutput) -> @location(0) vec4f {
+  var color = vec4f(1.0, 1.0, 1.0, 1.0);
+  if ((v.flags & 2) == 2){ // hover
+    color =  vec4f(1.0, 0.0, 0.0, 1.0);
+  }
   return color;
 }

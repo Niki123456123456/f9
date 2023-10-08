@@ -110,7 +110,7 @@ impl Project {
         let buffer = UniformBuffer::new(
             device,
             &layout, &compute_layout,
-            4 * 6 + 8 + 4 * 16,
+            4 * 16 + 4 * 16,
             vec![
                 &axises.buffer,
                 &grids.buffer,

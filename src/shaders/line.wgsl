@@ -7,6 +7,12 @@ struct Uniforms {
   camera_orientation_z : f32,
   mouse_x : f32,
   mouse_y : f32,
+  camera_origin_x : f32,
+  camera_origin_y : f32,
+  camera_origin_z : f32,
+  camera_orient_x : f32,
+  camera_orient_y : f32,
+  camera_orient_z : f32,
   matrix: mat4x4<f32>,
 };
 struct Point {

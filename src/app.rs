@@ -360,12 +360,13 @@ impl eframe::App for App {
 
                     update_camera(&mut project.state, rect, ctx);
 
-                    let dir = project
+                    let camera_dir = project
                         .state
                         .camera
                         .target
                         .sub(project.state.camera.position)
                         .normalize();
+
                     project.state.uniform_buffer.write(
                         &renderstate.queue,
                         0,
@@ -373,16 +374,22 @@ impl eframe::App for App {
                             project.state.camera.viewport.width(),
                             project.state.camera.viewport.height(),
                             rect.top(),
-                            dir.x,
-                            dir.y,
-                            dir.z,
+                            camera_dir.x,
+                            camera_dir.y,
+                            camera_dir.z,
                             project.state.hover_pos.x,
                             project.state.hover_pos.y,
+                            project.state.camera.ray.origin.x,
+                            project.state.camera.ray.origin.y,
+                            project.state.camera.ray.origin.z,
+                            project.state.camera.ray.direction.x,
+                            project.state.camera.ray.direction.y,
+                            project.state.camera.ray.direction.z,
                         ],
                     );
                     project.state.uniform_buffer.write_mat(
                         &renderstate.queue,
-                        4 * 6 + 8,
+                        4 * 16,
                         &project.state.camera.projection_view_matrix,
                     );
                 }
