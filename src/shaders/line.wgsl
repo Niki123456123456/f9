@@ -49,8 +49,6 @@ fn vert_main(@builtin(vertex_index) i : u32) -> VertexOutput {
   pos[0] = vec3f(pointBuffer.values[line.point_a].px, pointBuffer.values[line.point_a].py, pointBuffer.values[line.point_a].pz);
   pos[1] = vec3f(pointBuffer.values[line.point_b].px, pointBuffer.values[line.point_b].py, pointBuffer.values[line.point_b].pz);
 
-  //return uniforms.matrix * vec4f(pos[i % u32(2)], 1.0);
-
   var output : VertexOutput;
   output.position = uniforms.matrix * vec4f(pos[i % u32(2)], 1.0);
   output.flags = line.flags;

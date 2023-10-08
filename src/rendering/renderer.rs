@@ -207,6 +207,13 @@ impl Renderer {
                 include_str!("./../shaders/circle_com.wgsl"),
                 &|project| (project.state.components.circles.array.len() as u32, 1, 1),
             ),
+            ComputeShader::new(
+                device,
+                &compute_layout,
+                "arrow_com",
+                include_str!("./../shaders/arrow_com.wgsl"),
+                &|project| (project.state.components.arrows.array.len() as u32, 1, 1),
+            ),
         ];
 
         Self {

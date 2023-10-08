@@ -24,18 +24,22 @@ struct Point {
 struct PointBuffer {
   values: array<Point>,
 };
-struct Line {
-  point_a : u32,
-  point_b : u32,
+struct Vertex {
+  px : f32,
+  py : f32,
+  pz : f32,
+  dx : f32,
+  dy : f32,
+  dz : f32,
   flags : i32,
 }
-struct LineBuffer {
-  values: array<Line>,
+struct VertexBuffer {
+  values: array<Vertex>,
 };
 
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
 @group(0) @binding(4) var<storage, read> pointBuffer : PointBuffer;
-@group(0) @binding(5) var<storage, read_write> lineBuffer : LineBuffer;
+@group(0) @binding(3) var<storage, read_write> vertexBuffer : VertexBuffer;
 
 fn perp(a : vec2f, b : vec2f, c : vec2f) -> f32 { // perpendicular distance between line a+t*b and point c
     let distance = length(c - a - dot(c - a, b) * b);
@@ -62,10 +66,14 @@ fn get_distance(pos_a : vec2f, pos_b : vec2f, mouse_pos : vec2f, t : f32) -> f32
 
 @compute @workgroup_size(1, 1)
 fn main(@builtin(global_invocation_id) i : vec3<u32>) {
-  let line = lineBuffer.values[i.x];
+  let arrow = vertexBuffer.values[i.x];
+  let a = vec3f(arrow.px, arrow.py, arrow.pz);
+  let arrow_direction = vec3f(arrow.dx, arrow.dy, arrow.dz);
+  let spacing = 0.1;
+  let camera_orientation = vec3f(uniforms.camera_orientation_x, uniforms.camera_orientation_y, uniforms.camera_orientation_z);
 
-  let point_a = vec3f(pointBuffer.values[line.point_a].px, pointBuffer.values[line.point_a].py, pointBuffer.values[line.point_a].pz);
-  let point_b = vec3f(pointBuffer.values[line.point_b].px, pointBuffer.values[line.point_b].py, pointBuffer.values[line.point_b].pz);
+  let point_a = a + arrow_direction * (1. - spacing);
+  let point_b = a + arrow_direction * spacing;
 
   let pos_a = to_screen_position(point_a);
   let pos_b = to_screen_position(point_b);
@@ -78,9 +86,9 @@ fn main(@builtin(global_invocation_id) i : vec3<u32>) {
   let point = point_a + t * (point_b - point_a);
 
   if(d <= 20.){
-    lineBuffer.values[i.x].flags = lineBuffer.values[i.x].flags | 2;
+    vertexBuffer.values[i.x].flags = vertexBuffer.values[i.x].flags | 2;
   } else {
-    lineBuffer.values[i.x].flags = lineBuffer.values[i.x].flags & (~2);
+    vertexBuffer.values[i.x].flags = vertexBuffer.values[i.x].flags & (~2);
   }
 
 }

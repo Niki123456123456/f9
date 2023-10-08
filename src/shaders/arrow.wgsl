@@ -27,16 +27,20 @@ struct Vertex {
 struct VertexBuffer {
   values: array<Vertex>,
 };
+struct VertexOutput {
+  @builtin(position) position : vec4f,
+  @location(0) flags : i32,
+};
 
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
 @group(0) @binding(3) var<storage, read> vertexBuffer : VertexBuffer;
 
 
 @vertex
-fn vert_main(@builtin(vertex_index) i : u32) -> @builtin(position) vec4f {
-  let axis = vertexBuffer.values[i / u32(6)];
-  let a = vec3f(axis.px, axis.py, axis.pz);
-  let arrow_direction = vec3f(axis.dx, axis.dy, axis.dz);
+fn vert_main(@builtin(vertex_index) i : u32) -> VertexOutput {
+  let arrow = vertexBuffer.values[i / u32(6)];
+  let a = vec3f(arrow.px, arrow.py, arrow.pz);
+  let arrow_direction = vec3f(arrow.dx, arrow.dy, arrow.dz);
   let spacing = 0.1;
   let camera_orientation = vec3f(uniforms.camera_orientation_x, uniforms.camera_orientation_y, uniforms.camera_orientation_z);
 
@@ -54,11 +58,18 @@ fn vert_main(@builtin(vertex_index) i : u32) -> @builtin(position) vec4f {
   pos[4] = p1;
   pos[5] = p4;
 
-  return uniforms.matrix * vec4f(pos[i % u32(6)], 1.0);
+  var output : VertexOutput;
+  output.position = uniforms.matrix * vec4f(pos[i % u32(6)], 1.0);
+  output.flags = arrow.flags;
+  return output;
 }
 
+
 @fragment
-fn frag_main(@builtin(position) coord: vec4f) -> @location(0) vec4f {
-  let color = vec4f(1.0, 1.0, 1.0, 1.0);
+fn frag_main(v: VertexOutput) -> @location(0) vec4f {
+  var color = vec4f(1.0, 1.0, 1.0, 1.0);
+  if ((v.flags & 2) == 2){ // hover
+    color =  vec4f(1.0, 0.0, 0.0, 1.0);
+  }
   return color;
 }
