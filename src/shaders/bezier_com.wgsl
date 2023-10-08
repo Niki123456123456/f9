@@ -36,7 +36,7 @@ struct BezierBuffer {
 };
 
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
-@group(0) @binding(4) var<storage, read> pointBuffer : PointBuffer;
+@group(0) @binding(4) var<storage, read_write> pointBuffer : PointBuffer;
 @group(0) @binding(6) var<storage, read_write> bezierBuffer : BezierBuffer;
 
 fn to_screen_position(position : vec3f) -> vec2f {

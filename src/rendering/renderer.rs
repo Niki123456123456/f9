@@ -233,6 +233,7 @@ impl Renderer {
 
     pub fn compute<'a>(&'a self, mut pass: wgpu::ComputePass<'a>, project: &'a Project) {
         pass.set_bind_group(0, &project.state.uniform_buffer.compute_bind_group, &[]);
+        //return;
         for shader in self.compute_shaders.iter() {
             pass.set_pipeline(&shader.pipeline);
             let draw_count = (shader.get_draw_count)(&project);

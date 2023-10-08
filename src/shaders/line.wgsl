@@ -34,7 +34,7 @@ struct LineBuffer {
 };
 struct VertexOutput {
   @builtin(position) position : vec4f,
-  @location(0) flags : i32,
+  @location(0) @interpolate(flat) flags : i32,
 };
 
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
