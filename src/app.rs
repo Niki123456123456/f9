@@ -1,7 +1,7 @@
 use eframe::{
     egui_wgpu::wgpu::util::DeviceExt,
-    egui_wgpu::{self, wgpu, CallbackTrait, RenderState},
-    wgpu::{AdapterInfo, BindGroupLayout, Buffer, BufferDescriptor, BufferUsages, Device, Queue},
+    egui_wgpu::{self, wgpu, CallbackTrait, RenderState, CallbackResources},
+    wgpu::{AdapterInfo, BindGroupLayout, Buffer, BufferDescriptor, BufferUsages, Device, Queue, RenderPassDescriptor, RenderPassColorAttachment},
 };
 use egui::{epaint::Shadow, vec2, Color32, Margin, Pos2, Rect, Rounding, Stroke, Vec2};
 use glam::{Mat4, Vec3};
@@ -16,7 +16,7 @@ use std::{
 use crate::{
     camera::{self, Camera},
     project::{self, Project, ProjectState},
-    rendering::renderer::Renderer,
+    rendering::renderer::{Renderer, self},
     ui::tabcontrol,
 };
 
@@ -50,222 +50,6 @@ impl Default for App {
     }
 }
 
-fn build_screen_pass(
-    device: &Arc<Device>,
-    wgpu_render_state: &RenderState,
-    outputcolor_buffer: &wgpu::Buffer,
-) -> TriangleRenderResources2 {
-    let label = Some("screen_pass");
-    let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label,
-        entries: &[
-            wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            },
-            wgpu::BindGroupLayoutEntry {
-                binding: 1,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Storage { read_only: true },
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            },
-        ],
-    });
-
-    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label,
-        source: wgpu::ShaderSource::Wgsl(include_str!("./shaders/fullscreenQuad.wgsl").into()),
-    });
-
-    let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label,
-        layout: Some(
-            &device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label,
-                bind_group_layouts: &[&bind_group_layout],
-                push_constant_ranges: &[],
-            }),
-        ),
-        vertex: wgpu::VertexState {
-            module: &shader,
-            entry_point: "vert_main",
-            buffers: &[],
-        },
-        fragment: Some(wgpu::FragmentState {
-            module: &shader,
-            entry_point: "frag_main",
-            targets: &[Some(wgpu_render_state.target_format.into())],
-        }),
-        primitive: wgpu::PrimitiveState::default(),
-        depth_stencil: None,
-        multisample: wgpu::MultisampleState::default(),
-        multiview: None,
-    });
-
-    let uniform_buffersize = 4 * 2;
-    let uniform_buffer = device.create_buffer(&BufferDescriptor {
-        label,
-        size: uniform_buffersize,
-        usage: BufferUsages::COPY_DST | BufferUsages::UNIFORM,
-        mapped_at_creation: false,
-    });
-
-    let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-        label,
-        layout: &bind_group_layout,
-        entries: &[
-            wgpu::BindGroupEntry {
-                binding: 0,
-                resource: uniform_buffer.as_entire_binding(),
-            },
-            wgpu::BindGroupEntry {
-                binding: 1,
-                resource: outputcolor_buffer.as_entire_binding(),
-            },
-        ],
-    });
-
-    return TriangleRenderResources2 {
-        pipeline,
-        bind_group,
-        uniform_buffer,
-    };
-}
-
-fn build_raster_pass(device: &Arc<Device>, wgpu_render_state: &RenderState) -> RasterResources {
-    let label = Some("raster_pass");
-
-    let vertex_buffer = device.create_buffer(&BufferDescriptor {
-        label,
-        size: 4 * 36,
-        usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
-        mapped_at_creation: false,
-    });
-
-    let width = 3000;
-    let height = 3000;
-    let color_channels = 3;
-    let outputcolor_buffersize = 4 * (width * height) * color_channels;
-    let outputcolor_buffer = device.create_buffer(&BufferDescriptor {
-        label,
-        size: outputcolor_buffersize,
-        usage: BufferUsages::STORAGE | BufferUsages::COPY_SRC,
-        mapped_at_creation: false,
-    });
-
-    let uniform_buffersize = 4 * 2 + 4 * 16 + 8;
-    let uniform_buffer = device.create_buffer(&BufferDescriptor {
-        label,
-        size: uniform_buffersize,
-        usage: BufferUsages::COPY_DST | BufferUsages::UNIFORM,
-        mapped_at_creation: false,
-    });
-
-    let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label,
-        entries: &[
-            wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::COMPUTE,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Storage { read_only: false },
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            },
-            wgpu::BindGroupLayoutEntry {
-                binding: 1,
-                visibility: wgpu::ShaderStages::COMPUTE,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Storage { read_only: true },
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            },
-            wgpu::BindGroupLayoutEntry {
-                binding: 2,
-                visibility: wgpu::ShaderStages::COMPUTE,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            },
-        ],
-    });
-
-    let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-        label,
-        layout: &bind_group_layout,
-        entries: &[
-            wgpu::BindGroupEntry {
-                binding: 0,
-                resource: outputcolor_buffer.as_entire_binding(),
-            },
-            wgpu::BindGroupEntry {
-                binding: 1,
-                resource: vertex_buffer.as_entire_binding(),
-            },
-            wgpu::BindGroupEntry {
-                binding: 2,
-                resource: uniform_buffer.as_entire_binding(),
-            },
-        ],
-    });
-
-    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label,
-        source: wgpu::ShaderSource::Wgsl(include_str!("./shaders/computeRasterizer.wgsl").into()),
-    });
-
-    let raster_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-        label,
-        layout: Some(
-            &device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label,
-                bind_group_layouts: &[&bind_group_layout],
-                push_constant_ranges: &[],
-            }),
-        ),
-        module: &shader,
-        entry_point: "main",
-    });
-
-    let clear_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-        label,
-        layout: Some(
-            &device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label,
-                bind_group_layouts: &[&bind_group_layout],
-                push_constant_ranges: &[],
-            }),
-        ),
-        module: &shader,
-        entry_point: "clear",
-    });
-
-    return RasterResources {
-        clear_pipeline,
-        raster_pipeline,
-        bind_group,
-        uniform_buffer,
-        vertex_buffer,
-        outputcolor_buffer,
-    };
-}
 
 impl App {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
@@ -296,6 +80,17 @@ impl App {
 struct RenderCallback;
 
 impl CallbackTrait for RenderCallback {
+    fn prepare(
+        &self,
+        _device: &wgpu::Device,
+        _queue: &wgpu::Queue,
+        _egui_encoder: &mut wgpu::CommandEncoder,
+        _callback_resources: &mut CallbackResources,
+    ) -> Vec<wgpu::CommandBuffer> {
+        //_egui_encoder.begin_render_pass(&RenderPassDescriptor{ label: Some("Test Label"), color_attachments: &[Some(RenderPassColorAttachment{ view: todo!(), resolve_target: todo!(), ops: todo!() })], depth_stencil_attachment: todo!() });
+        return Vec::new();
+    }
+
     fn paint<'a>(
         &'a self,
         info: egui::PaintCallbackInfo,

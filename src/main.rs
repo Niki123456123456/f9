@@ -7,13 +7,16 @@
 // Icosphere Quadsphere UVsphere
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> eframe::Result<()> {
+
+
     env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
     
     let native_options = eframe::NativeOptions{
-        //depth_buffer: 8,
-        //stencil_buffer: 8,
-        //multisampling: 16,
-        event_loop_builder: Some(Box::new(move |builder| {
+        depth_buffer: 32,
+        stencil_buffer: 0,
+        multisampling: 1,
+        window_builder: Some(Box::new(|builder| {
+            return builder.with_inner_size(winit::dpi::LogicalSize::new(800.0, 600.0));
         })),
         ..Default::default()
     };

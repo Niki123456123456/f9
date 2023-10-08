@@ -4,8 +4,8 @@ use eframe::{
     egui_wgpu::RenderState,
     wgpu::{
         self, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, ComputePipeline,
-        Device, PrimitiveState, PrimitiveTopology, RenderPipeline, RenderPipelineDescriptor,
-        ShaderModuleDescriptor, ShaderSource,
+        DepthStencilState, Device, PrimitiveState, PrimitiveTopology, RenderPipeline,
+        RenderPipelineDescriptor, ShaderModuleDescriptor, ShaderSource, TextureFormat,
     },
 };
 
@@ -337,6 +337,7 @@ pub fn build_shader(
         source: ShaderSource::Wgsl(source.into()),
     });
 
+
     let pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
         label: Some(label),
         layout: Some(
@@ -379,7 +380,13 @@ pub fn build_shader(
             polygon_mode: wgpu::PolygonMode::Fill,
             conservative: false,
         },
-        depth_stencil: None,
+        depth_stencil: Some(DepthStencilState {
+            format: TextureFormat::Depth32Float,
+            depth_write_enabled: true,
+            depth_compare: wgpu::CompareFunction::Less,
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }),
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
     });
