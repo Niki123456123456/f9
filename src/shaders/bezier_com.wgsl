@@ -99,9 +99,11 @@ fn main(@builtin(global_invocation_id) i : vec3<u32>) {
   let c_a = to_screen_position(control_a);
   let c_b = to_screen_position(control_b);
 
-  let t = findClosestT(p_a, c_a, c_b, p_b, vec2(uniforms.mouse_x, uniforms.height - uniforms.mouse_y), 1.0, 30u);
+  let mouse_pos = vec2(uniforms.mouse_x, uniforms.mouse_y);
+
+  let t = findClosestT(p_a, c_a, c_b, p_b, mouse_pos, 1.0, 30u);
   let position = cubicBezier(p_a, c_a, c_b, p_b, t);
-  let d = distance(position, vec2(uniforms.mouse_x, uniforms.height - uniforms.mouse_y));
+  let d = distance(position, mouse_pos);
 
   if(d <= 20.){
     bezierBuffer.values[i.x].flags = bezierBuffer.values[i.x].flags | 2;

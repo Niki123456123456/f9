@@ -95,7 +95,7 @@ fn main(@builtin(global_invocation_id) i : vec3<u32>) {
   let t = newtonMinDist(center, shift(orient), double_shift(orient), orient, radius, heightfactor, camera_dir, camera_origin);
   let pos = get_circle(t, orient, heightfactor, center, radius);
   let position = to_screen_position(pos);
-  let d = distance(position, vec2(uniforms.mouse_x, uniforms.height - uniforms.mouse_y));
+  let d = distance(position, vec2(uniforms.mouse_x, uniforms.mouse_y));
 
   if(d <= 20.){
     circleBuffer.values[i.x].flags = circleBuffer.values[i.x].flags | 2;

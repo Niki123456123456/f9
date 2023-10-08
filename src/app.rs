@@ -378,7 +378,7 @@ impl eframe::App for App {
                             camera_dir.y,
                             camera_dir.z,
                             project.state.hover_pos.x,
-                            project.state.hover_pos.y,
+                            project.state.camera.viewport.height() - project.state.hover_pos.y,
                             project.state.camera.ray.origin.x,
                             project.state.camera.ray.origin.y,
                             project.state.camera.ray.origin.z,

@@ -61,12 +61,14 @@ fn main(@builtin(global_invocation_id) i : vec3<u32>) {
   let pos_a = to_screen_position(point_a);
   let pos_b = to_screen_position(point_b);
 
-  var d = perp(pos_a, normalize(pos_b - pos_a), vec2(uniforms.mouse_x, uniforms.height - uniforms.mouse_y));
-  let t = perp_t(pos_a, pos_b - pos_a, vec2(uniforms.mouse_x, uniforms.height - uniforms.mouse_y));
+  let mouse_pos = vec2(uniforms.mouse_x, uniforms.mouse_y);
+
+  var d = perp(pos_a, normalize(pos_b - pos_a), mouse_pos);
+  let t = perp_t(pos_a, pos_b - pos_a, mouse_pos);
   if (t <= 0.0){
-    d = distance(pos_a, vec2(uniforms.mouse_x, uniforms.height - uniforms.mouse_y));
+    d = distance(pos_a, mouse_pos);
   } else if (t >= 1.0) {
-    d = distance(pos_b, vec2(uniforms.mouse_x, uniforms.height - uniforms.mouse_y));
+    d = distance(pos_b, mouse_pos);
   }
 
   let point = point_a + t * (point_b - point_a);
