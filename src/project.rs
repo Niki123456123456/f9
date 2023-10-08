@@ -43,7 +43,6 @@ impl Project {
                 vertex::z(),
             ],
             device,
-            queue,
         );
         let grids = ComponentArray::new(
             vec![
@@ -53,7 +52,6 @@ impl Project {
                 vertex::z().notvisible(),
             ],
             device,
-            queue,
         );
         let arrows = ComponentArray::new(
             vec![
@@ -62,7 +60,6 @@ impl Project {
                 vertex::z().notvisible(),
             ],
             device,
-            queue,
         );
         let points = ComponentArray::new(
             vec![
@@ -72,7 +69,6 @@ impl Project {
                 point::new(vec3(0.0, 1.0, 0.0)),
             ],
             device,
-            queue,
         );
 
         let circles = ComponentArray::new(
@@ -80,12 +76,11 @@ impl Project {
                 circle::new(0, 2.5, vec3(1.0, 0.0, 0.0), 0.0)
             ],
             device,
-            queue,
         );
 
-        let lines = ComponentArray::new(vec![line::new(0, 1)], device, queue);
+        let lines = ComponentArray::new(vec![line::new(0, 1)], device);
 
-        let beziers = ComponentArray::new(vec![bezier::new(0, 3, 2, 1)], device, queue);
+        let beziers = ComponentArray::new(vec![bezier::new(0, 3, 2, 1)], device);
 
         let arrow_planes = ComponentArray::new(
             vec![
@@ -94,7 +89,6 @@ impl Project {
                 vertex::z().notvisible(),
             ],
             device,
-            queue,
         );
 
         let layout = get_layout(

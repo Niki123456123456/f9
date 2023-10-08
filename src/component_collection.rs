@@ -2,7 +2,9 @@ use std::{array, sync::Arc};
 
 use eframe::wgpu::{self, BufferUsages, Device};
 
-use crate::components::{component::Component, vertex::Vertex, point::Point, line::Line, bezier::Bezier, circle::Circle};
+use crate::components::{
+    bezier::Bezier, circle::Circle, component::Component, line::Line, point::Point, vertex::Vertex,
+};
 
 pub struct ComponentCollection {
     pub axises: ComponentArray<Vertex>,
@@ -19,40 +21,40 @@ pub struct ComponentArray<T> {
     pub array: Vec<Component<T>>,
     pub buffer_size: usize,
     pub buffer: wgpu::Buffer,
+    pub device: Arc<Device>,
 }
 
 impl<T> ComponentArray<T> {
     pub fn new(
         array: Vec<Component<T>>,
         device: &Arc<Device>,
-        queue: &wgpu::Queue,
     ) -> ComponentArray<T> {
-        let mem_size =core::mem::size_of::<Component<T>>();
+        let mem_size = core::mem::size_of::<Component<T>>();
         let buffer_size = array.len() * mem_size;
 
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: None,
             usage: BufferUsages::COPY_DST | BufferUsages::STORAGE,
-            mapped_at_creation: false,
+            mapped_at_creation: true,
             size: buffer_size as u64,
         });
 
         unsafe {
-            let data: &[u8] = core::slice::from_raw_parts(
-                array.as_ptr() as *const u8,
-                array.len() * mem_size,
-            );
-            queue.write_buffer(&buffer, 0, &data);
+            let data: &[u8] = core::slice::from_raw_parts(array.as_ptr() as *const u8, buffer_size);
+            buffer
+                .slice(0..buffer_size as u64)
+                .get_mapped_range_mut()
+                .copy_from_slice(data);
         }
-       
+        buffer.unmap();
 
         return ComponentArray {
             array,
             buffer_size,
             buffer,
+            device: device.clone(),
         };
     }
-
 
     pub fn push_or_update<Y, X>(&mut self, index: &mut Option<usize>, insert: X, update: Y) -> usize
     where
@@ -85,6 +87,11 @@ impl<T> ComponentArray<T> {
                 );
 
                 // todo write data to buffer
+                let slice = self
+                    .buffer
+                    .slice(size as u64..(size as u64 + data.len() as u64));
+                //slice.map_async(mode, callback)
+                slice.get_mapped_range_mut().copy_from_slice(data);
             }
             return Some(x);
         }
@@ -109,9 +116,22 @@ impl<T> ComponentArray<T> {
     }
 
     fn resize_buffer(&mut self, new_size: usize) {
+        self.buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: None,
+            usage: BufferUsages::COPY_DST | BufferUsages::STORAGE,
+            mapped_at_creation: true,
+            size: new_size as u64,
+        });
+
+        let size = self.array.len() * core::mem::size_of::<Component<T>>();
         unsafe {
-            // todo recreate buffer
+            let data: &[u8] = core::slice::from_raw_parts(self.array.as_ptr() as *const u8, size);
+            self.buffer
+                .slice(0..size as u64)
+                .get_mapped_range_mut()
+                .copy_from_slice(data);
         }
+        self.buffer.unmap();
 
         //println!("update buffer {} -> {}", self.buffer_size, new_size);
         self.buffer_size = new_size;
