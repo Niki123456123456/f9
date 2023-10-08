@@ -193,6 +193,13 @@ impl Renderer {
                 include_str!("./../shaders/line_com.wgsl"),
                 &|project| (project.state.components.lines.array.len() as u32, 1, 1),
             ),
+            ComputeShader::new(
+                device,
+                &compute_layout,
+                "bezier_com",
+                include_str!("./../shaders/bezier_com.wgsl"),
+                &|project| (project.state.components.beziers.array.len() as u32, 1, 1),
+            ),
         ];
 
         Self {

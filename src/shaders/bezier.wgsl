@@ -28,6 +28,10 @@ struct Bezier {
 struct BezierBuffer {
   values: array<Bezier>,
 };
+struct VertexOutput {
+  @builtin(position) position : vec4f,
+  @location(0) flags : i32,
+};
 
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
 @group(0) @binding(4) var<storage, read> pointBuffer : PointBuffer;
@@ -42,7 +46,7 @@ fn get_position(t : f32, point_a : vec3f, point_b : vec3f, control_a : vec3f, co
 }
 
 @vertex
-fn vert_main(@builtin(vertex_index) i : u32) -> @builtin(position) vec4f {
+fn vert_main(@builtin(vertex_index) i : u32) -> VertexOutput {
   let bezier = bezierBuffer.values[i / u32(51)];
   let point_a = vec3f(pointBuffer.values[bezier.point_a].px, pointBuffer.values[bezier.point_a].py, pointBuffer.values[bezier.point_a].pz);
   let point_b = vec3f(pointBuffer.values[bezier.point_b].px, pointBuffer.values[bezier.point_b].py, pointBuffer.values[bezier.point_b].pz);
@@ -51,11 +55,17 @@ fn vert_main(@builtin(vertex_index) i : u32) -> @builtin(position) vec4f {
 
   let t = f32(i % u32(51)) / 50.0;
 
-  return uniforms.matrix * vec4f(get_position(t, point_a, point_b, control_a, control_b), 1.0);
+  var output : VertexOutput;
+  output.position = uniforms.matrix * vec4f(get_position(t, point_a, point_b, control_a, control_b), 1.0);
+  output.flags = bezier.flags;
+  return output;
 }
 
 @fragment
-fn frag_main(@builtin(position) coord: vec4f) -> @location(0) vec4f {
-  let color = vec4f(1.0, 1.0, 1.0, 1.0);
+fn frag_main(v: VertexOutput) -> @location(0) vec4f {
+  var color = vec4f(1.0, 1.0, 1.0, 1.0);
+  if ((v.flags & 2) == 2){ // hover
+    color =  vec4f(1.0, 0.0, 0.0, 1.0);
+  }
   return color;
 }
