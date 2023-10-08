@@ -324,10 +324,10 @@ impl eframe::App for App {
                 stroke: Stroke::NONE,
             })
             .show(ctx, |ui| {
-                let mut spacing = ui.spacing_mut();
+                let spacing = ui.spacing_mut();
                 spacing.item_spacing = Vec2::ZERO;
 
-                let mut renderstate = _frame.wgpu_render_state().unwrap();
+                let renderstate = _frame.wgpu_render_state().unwrap();
 
                 {
                     let mut writer = renderstate.renderer.write();
@@ -341,15 +341,22 @@ impl eframe::App for App {
                     );
                 }
 
-                //println!("{:?}", ui.next_widget_position());
 
                 let (rect, response) =
                     ui.allocate_at_least(ui.available_size(), egui::Sense::drag());
+
 
                 {
                     let mut writer = renderstate.renderer.write();
                     let appstate: &mut AppState = writer.callback_resources.get_mut().unwrap();
                     let project = &mut appstate.projects[appstate.selected_project];
+
+                    if let Some(pos) = response.hover_pos() {
+                        project.state.hover_pos = glam::vec2(
+                            pos.x * ctx.pixels_per_point(),
+                            pos.y * ctx.pixels_per_point() - rect.top() * ctx.pixels_per_point(),
+                        );
+                    }
 
                     update_camera(&mut project.state, rect, ctx);
 
@@ -365,14 +372,17 @@ impl eframe::App for App {
                         &[
                             project.state.camera.viewport.width(),
                             project.state.camera.viewport.height(),
+                            rect.top(),
                             dir.x,
                             dir.y,
                             dir.z,
+                            project.state.hover_pos.x,
+                            project.state.hover_pos.y,
                         ],
                     );
                     project.state.uniform_buffer.write_mat(
                         &renderstate.queue,
-                        4 * 5 + 8 + 4,
+                        4 * 6 + 8,
                         &project.state.camera.projection_view_matrix,
                     );
                 }

@@ -193,7 +193,7 @@ impl Renderer {
     }
 
     pub fn compute<'a>(&'a self, mut pass:  wgpu::ComputePass<'a>, project: &'a Project) {
-        pass.set_bind_group(0, &project.state.uniform_buffer.bind_group, &[]);
+        pass.set_bind_group(0, &project.state.uniform_buffer.compute_bind_group, &[]);
         for shader in self.compute_shaders.iter() {
             pass.set_pipeline(&shader.pipeline);
             let draw_count = (shader.get_draw_count)(&project);
@@ -214,7 +214,7 @@ impl Renderer {
 pub fn uniform(index: u32) -> BindGroupLayoutEntry {
     BindGroupLayoutEntry {
         binding: index,
-        visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+        visibility: wgpu::ShaderStages::VERTEX_FRAGMENT | wgpu::ShaderStages::COMPUTE,
         ty: wgpu::BindingType::Buffer {
             ty: wgpu::BufferBindingType::Uniform,
             has_dynamic_offset: false,

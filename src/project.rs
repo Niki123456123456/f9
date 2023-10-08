@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use eframe::wgpu::{self, Device};
-use glam::vec3;
+use glam::{vec3, Vec2};
 
 use crate::{
     camera::Camera,
@@ -9,7 +9,7 @@ use crate::{
     components::{line, point, vertex, bezier, circle},
     rendering::{
         buffer::UniformBuffer,
-        renderer::{get_layout, storage, uniform},
+        renderer::{get_layout, storage, uniform, storage_writeable},
     },
 };
 
@@ -17,6 +17,7 @@ pub struct ProjectState {
     pub camera: Camera,
     pub components: ComponentCollection,
     pub uniform_buffer: Arc<UniformBuffer>,
+    pub hover_pos : Vec2,
 }
 
 pub struct Project {
@@ -91,10 +92,25 @@ impl Project {
                 storage(7),
             ],
         );
+
+        let compute_layout = get_layout(
+            device,
+            &[
+                uniform(0),
+                storage_writeable(1),
+                storage_writeable(2),
+                storage_writeable(3),
+                storage_writeable(4),
+                storage_writeable(5),
+                storage_writeable(6),
+                storage_writeable(7),
+            ],
+        );
+
         let buffer = UniformBuffer::new(
             device,
-            &layout,
-            4 * 5 + 4 + 4 * 16 + 8,
+            &layout, &compute_layout,
+            4 * 6 + 8 + 4 * 16,
             vec![
                 &axises.buffer,
                 &grids.buffer,
@@ -119,6 +135,7 @@ impl Project {
                     circles,
                 },
                 uniform_buffer: Arc::new(buffer),
+                hover_pos: Vec2::ZERO,
             },
         }
     }

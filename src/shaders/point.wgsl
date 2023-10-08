@@ -1,9 +1,12 @@
 struct Uniforms {
   width : f32,
   height : f32,
+  height_top : f32,
   camera_orientation_x : f32,
   camera_orientation_y : f32,
   camera_orientation_z : f32,
+  mouse_x : f32,
+  mouse_y : f32,
   matrix: mat4x4<f32>,
 };
 struct Point {
@@ -19,6 +22,7 @@ struct PointBuffer {
 struct VertexOutput {
   @builtin(position) position : vec4f,
   @location(0) vCenter : vec2f,
+  @location(1) flags : i32,
 };
 
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
@@ -53,6 +57,7 @@ fn vert_main(@builtin(vertex_index) i : u32) -> VertexOutput {
     var output : VertexOutput;
     output.position = vec4f(center.w * ((pos[i % u32(6)])/size - 0.5) / 0.5, center.z, center.w);
     output.vCenter = vec2f(vCenter.x, uniforms.height - vCenter.y);
+    output.flags = point.flags;
     return output;
 }
 
@@ -60,7 +65,7 @@ fn vert_main(@builtin(vertex_index) i : u32) -> VertexOutput {
 fn frag_main( v: VertexOutput) -> @location(0) vec4f {
     var color = vec4f(1.0, 1.0, 1.0, 1.0);
 
-    let distance = distance(v.position.xy - vec2f(0.0, 18.0), v.vCenter);
+    let distance = distance(v.position.xy - vec2f(0.0, uniforms.height_top), v.vCenter);
     if (distance > 5.0){
         color = vec4f(0.0, 0.0, 0.0, 0.0);
     }
