@@ -1,7 +1,3 @@
-struct PointBuffer {
-  values: array<Point>,
-};
-
 struct VertexOutput {
   @builtin(position) position : vec4f,
   @location(0) vCenter : vec2f,

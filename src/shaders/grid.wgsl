@@ -1,16 +1,5 @@
-struct VertexBuffer {
-  values: array<Vertex>,
-};
-
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
 @group(0) @binding(2) var<storage, read> vertexBuffer : VertexBuffer;
-
-fn shift(v : vec3f) -> vec3f{
-    return vec3f(v.z, v.x, v.y);
-}
-fn double_shift(v : vec3f)-> vec3f{
-    return vec3f(v.y, v.z, v.x);
-}
 
 @vertex
 fn vert_main(@builtin(vertex_index) i : u32) -> @builtin(position) vec4f {

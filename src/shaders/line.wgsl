@@ -1,9 +1,3 @@
-struct PointBuffer {
-  values: array<Point>,
-};
-struct LineBuffer {
-  values: array<Line>,
-};
 struct VertexOutput {
   @builtin(position) position : vec4f,
   @location(0) @interpolate(flat) flags : i32,

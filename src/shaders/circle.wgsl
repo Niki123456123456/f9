@@ -1,9 +1,3 @@
-struct PointBuffer {
-  values: array<Point>,
-};
-struct CircleBuffer {
-  values: array<Circle>,
-};
 struct VertexOutput {
   @builtin(position) position : vec4f,
   @location(0) @interpolate(flat) flags : i32,
@@ -13,7 +7,7 @@ struct VertexOutput {
 @group(0) @binding(4) var<storage, read> pointBuffer : PointBuffer;
 @group(0) @binding(7) var<storage, read> circleBuffer : CircleBuffer;
 
-const PI: f32 = 3.1415926538;
+
 
 fn rotateAroundAxis(point : vec3f, axisOrigin : vec3f, axisDirection : vec3f, angle : f32) -> vec3f {
     // Normiere die Achsenrichtung

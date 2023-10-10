@@ -1,6 +1,3 @@
-struct VertexBuffer {
-  values: array<Vertex>,
-};
 struct VertexOutput {
   @builtin(position) position : vec4f,
   @location(0) @interpolate(flat) flags : i32,

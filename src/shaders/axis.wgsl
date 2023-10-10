@@ -1,7 +1,3 @@
-struct VertexBuffer {
-  values: array<Vertex>,
-};
-
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
 @group(0) @binding(3) var<storage, read> vertexBuffer : VertexBuffer;
 

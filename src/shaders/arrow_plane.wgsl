@@ -1,6 +1,3 @@
-struct VertexBuffer {
-  values: array<Vertex>,
-};
 struct VertexOutput {
   @builtin(position) position : vec4f,
   @location(0) @interpolate(flat) flags : i32,
@@ -8,14 +5,6 @@ struct VertexOutput {
 
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
 @group(0) @binding(8) var<storage, read> vertexBuffer : VertexBuffer;
-
-fn shift(v : vec3f) -> vec3f{
-    return vec3f(v.z, v.x, v.y);
-}
-fn double_shift(v : vec3f)-> vec3f{
-    return vec3f(v.y, v.z, v.x);
-}
-
 
 @vertex
 fn vert_main(@builtin(vertex_index) i : u32) -> VertexOutput {

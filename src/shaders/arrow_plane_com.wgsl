@@ -1,9 +1,3 @@
-struct PointBuffer {
-  values: array<Point>,
-};
-struct VertexBuffer {
-  values: array<Vertex>,
-};
 struct Triangle2f{
   p0 : vec2f,
   p1 : vec2f,
@@ -37,18 +31,6 @@ fn is_point_in(triangle : Triangle2f, point: vec2f) -> bool {
         // Check if point is in triangle
         return (u >= 0.0) && (v >= 0.0) && (u + v < 1.0);
     }
-
-fn to_screen_position(position : vec3f) -> vec2f {
-    let pos =  uniforms.matrix * vec4f(position, 1.0);
-    return vec4f(((pos.xyz/pos.w) * 0.5 + 0.5) * vec3(uniforms.width, uniforms.height, 1.0), pos.w).xy;
-}
-
-fn shift(v : vec3f) -> vec3f{
-    return vec3f(v.z, v.x, v.y);
-}
-fn double_shift(v : vec3f)-> vec3f{
-    return vec3f(v.y, v.z, v.x);
-}
 
 @compute @workgroup_size(1, 1)
 fn main(@builtin(global_invocation_id) i : vec3<u32>) {

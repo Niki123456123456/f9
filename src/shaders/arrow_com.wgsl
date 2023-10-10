@@ -1,10 +1,3 @@
-struct PointBuffer {
-  values: array<Point>,
-};
-struct VertexBuffer {
-  values: array<Vertex>,
-};
-
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
 @group(0) @binding(4) var<storage, read> pointBuffer : PointBuffer;
 @group(0) @binding(3) var<storage, read_write> vertexBuffer : VertexBuffer;
@@ -18,10 +11,7 @@ fn perp_t(a : vec2f, b : vec2f, c : vec2f) -> f32{
     return t;
 }
 
-fn to_screen_position(position : vec3f) -> vec2f {
-    let pos =  uniforms.matrix * vec4f(position, 1.0);
-    return vec4f(((pos.xyz/pos.w) * 0.5 + 0.5) * vec3(uniforms.width, uniforms.height, 1.0), pos.w).xy;
-}
+
 
 fn get_distance(pos_a : vec2f, pos_b : vec2f, mouse_pos : vec2f, t : f32) -> f32 {
   if (t <= 0.0){

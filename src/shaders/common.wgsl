@@ -1,3 +1,6 @@
+const PI: f32 = 3.1415926538;
+
+// structs:
 struct Uniforms {
   width : f32,
   height : f32,
@@ -50,5 +53,34 @@ struct Circle {
   orientation_z : f32,
   heightfactor: f32,
   flags : i32,
+}
+
+// buffers
+struct LineBuffer {
+  values: array<Line>,
+};
+struct VertexBuffer {
+  values: array<Vertex>,
+};
+struct PointBuffer {
+  values: array<Point>,
+};
+struct BezierBuffer {
+  values: array<Bezier>,
+};
+struct CircleBuffer {
+  values: array<Circle>,
+};
+
+fn to_screen_position(position : vec3f) -> vec2f {
+    let pos =  uniforms.matrix * vec4f(position, 1.0);
+    return vec4f(((pos.xyz/pos.w) * 0.5 + 0.5) * vec3(uniforms.width, uniforms.height, 1.0), pos.w).xy;
+}
+
+fn shift(v : vec3f) -> vec3f{
+    return vec3f(v.z, v.x, v.y);
+}
+fn double_shift(v : vec3f)-> vec3f{
+    return vec3f(v.y, v.z, v.x);
 }
 

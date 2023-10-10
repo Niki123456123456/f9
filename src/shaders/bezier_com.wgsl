@@ -1,19 +1,6 @@
-struct PointBuffer {
-  values: array<Point>,
-};
-
-struct BezierBuffer {
-  values: array<Bezier>,
-};
-
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
 @group(0) @binding(4) var<storage, read_write> pointBuffer : PointBuffer;
 @group(0) @binding(6) var<storage, read_write> bezierBuffer : BezierBuffer;
-
-fn to_screen_position(position : vec3f) -> vec2f {
-    let pos =  uniforms.matrix * vec4f(position, 1.0);
-    return vec4f(((pos.xyz/pos.w) * 0.5 + 0.5) * vec3(uniforms.width, uniforms.height, 1.0), pos.w).xy;
-}
 
 fn get_position(P0: vec3f, P1: vec3f, P2: vec3f, P3: vec3f, t : f32) -> vec3f {
     let position = pow(1.0 - t, 3.0) * P0
