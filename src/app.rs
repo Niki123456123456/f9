@@ -38,8 +38,6 @@ pub struct App {
     #[serde(skip)]
     last_render_time: Instant,
     #[serde(skip)]
-    raster: Option<RasterResources>,
-    #[serde(skip)]
     pub selected_project: usize,
     #[serde(skip)]
     pub commands: Vec<Command>,
@@ -50,7 +48,6 @@ impl Default for App {
         Self {
             adapter_info: None,
             last_render_time: Instant::now(),
-            raster: None,
             selected_project: 0,
             commands: get_commands(),
         }
@@ -285,92 +282,3 @@ pub struct Vertex {
     pub position: Vec3,
     pub direction: Vec3,
 }
-
-struct WindowSize {
-    width: f32,
-    height: f32,
-}
-
-struct RasterResources {
-    clear_pipeline: wgpu::ComputePipeline,
-    raster_pipeline: wgpu::ComputePipeline,
-    bind_group: wgpu::BindGroup,
-    uniform_buffer: wgpu::Buffer,
-    vertex_buffer: wgpu::Buffer,
-    outputcolor_buffer: wgpu::Buffer,
-}
-
-impl RasterResources {
-    fn execute(&self, renderstate: &RenderState, size: Vec2, projection: &Mat4) {
-        let mx_ref: &[f32; 16] = projection.as_ref();
-
-        renderstate
-            .queue
-            .write_buffer(&self.uniform_buffer, 16, bytemuck::cast_slice(mx_ref));
-        renderstate.queue.write_buffer(
-            &self.uniform_buffer,
-            0,
-            bytemuck::cast_slice(&[size.x, size.y]),
-        );
-        let array = vec![
-            Vertex {
-                position: Vec3::ZERO,
-                direction: Vec3::X,
-            },
-            Vertex {
-                position: Vec3::ZERO,
-                direction: Vec3::Y,
-            },
-            Vertex {
-                position: Vec3::ZERO,
-                direction: Vec3::Z,
-            },
-        ];
-
-        write_buffer(&array, &renderstate.queue, &self.vertex_buffer);
-
-        let mut encoder =
-            renderstate
-                .device
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("clear Encoder"),
-                });
-
-        {
-            let mut passencoder: wgpu::ComputePass<'_> =
-                encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                    label: Some("clear pass"),
-                });
-            passencoder.set_pipeline(&self.clear_pipeline);
-            passencoder.set_bind_group(0, &self.bind_group, &[]);
-            let work_group_count = ((size.x as f32) * (size.y as f32) / (256 as f32)).ceil() as u32;
-            passencoder.dispatch_workgroups(work_group_count, 1, 1);
-        }
-        renderstate.queue.submit(Some(encoder.finish()));
-
-        let mut encoder =
-            renderstate
-                .device
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("Raster Encoder"),
-                });
-        {
-            let mut passencoder = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("raster pass"),
-            });
-            passencoder.set_pipeline(&self.raster_pipeline);
-            passencoder.set_bind_group(0, &self.bind_group, &[]);
-            passencoder.dispatch_workgroups(array.len() as u32, 1000, 1);
-        }
-        renderstate.queue.submit(Some(encoder.finish()));
-    }
-}
-
-fn write_buffer<T>(array: &[T], queue: &Queue, buffer: &Buffer) {
-    unsafe {
-        let single_size = std::mem::size_of::<Vertex>() * array.len();
-        let data = std::slice::from_raw_parts(array as *const [T] as *const u8, single_size);
-        queue.write_buffer(buffer, 0, data);
-    }
-}
-
