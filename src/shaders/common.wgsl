@@ -55,21 +55,35 @@ struct Circle {
   flags : i32,
 }
 
-// buffers
-struct LineBuffer {
-  values: array<Line>,
+struct HoverElement{
+    index: u32,
+    ctype: u32,
+    distance : f32,
+    position_x : u32,
+    position_y : u32,
+    position_z : u32,
+    flags : i32,
 };
+
+// buffers
 struct VertexBuffer {
   values: array<Vertex>,
 };
 struct PointBuffer {
   values: array<Point>,
 };
+struct LineBuffer {
+  values: array<Line>,
+};
 struct BezierBuffer {
   values: array<Bezier>,
 };
 struct CircleBuffer {
   values: array<Circle>,
+};
+
+struct AtomicCounter {
+    counter: atomic<u32>,
 };
 
 fn to_screen_position(position : vec3f) -> vec2f {

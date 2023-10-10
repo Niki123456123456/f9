@@ -25,7 +25,12 @@ impl ComputeShader {
         get_draw_count: &'static (dyn Fn(&Project) -> (u32, u32, u32) + Send + Sync),
     ) -> Self {
         Self {
-            pipeline: build_compute_shader(device, label, &(include_str!("./../shaders/common.wgsl").to_owned() + source), layout),
+            pipeline: build_compute_shader(
+                device,
+                label,
+                &(include_str!("./../shaders/common.wgsl").to_owned() + source),
+                layout,
+            ),
             get_draw_count: Box::new(get_draw_count),
         }
     }
@@ -47,7 +52,14 @@ impl RenderShader {
         get_draw_count: &'static (dyn Fn(&Project) -> u32 + Send + Sync),
     ) -> Self {
         Self {
-            pipeline: build_shader(device, state, label, &(include_str!("./../shaders/common.wgsl").to_owned() + source), layout, topology),
+            pipeline: build_shader(
+                device,
+                state,
+                label,
+                &(include_str!("./../shaders/common.wgsl").to_owned() + source),
+                layout,
+                topology,
+            ),
             get_draw_count: Box::new(get_draw_count),
         }
     }
@@ -72,6 +84,7 @@ impl Renderer {
                 storage(6),
                 storage(7),
                 storage(8),
+                //storage(9),
             ],
         );
 
@@ -87,6 +100,7 @@ impl Renderer {
                 storage_writeable(6),
                 storage_writeable(7),
                 storage_writeable(8),
+                //storage_writeable(9),
             ],
         );
         let shaders = vec![
@@ -233,6 +247,7 @@ impl Renderer {
 
     pub fn compute<'a>(&'a self, mut pass: wgpu::ComputePass<'a>, project: &'a Project) {
         pass.set_bind_group(0, &project.state.uniform_buffer.compute_bind_group, &[]);
+        pass.set_bind_group(1, &project.state.uniform_buffer.atomic_bind_group, &[]);
         for shader in self.compute_shaders.iter() {
             pass.set_pipeline(&shader.pipeline);
             let draw_count = (shader.get_draw_count)(&project);
@@ -314,7 +329,7 @@ pub fn build_compute_shader(
         layout: Some(
             &device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some(label),
-                bind_group_layouts: &[&layout],
+                bind_group_layouts: &[&layout, &get_layout(device, &[storage_writeable(0)])],
                 push_constant_ranges: &[],
             }),
         ),
@@ -336,7 +351,6 @@ pub fn build_shader(
         label: Some(label),
         source: ShaderSource::Wgsl(source.into()),
     });
-
 
     let pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
         label: Some(label),

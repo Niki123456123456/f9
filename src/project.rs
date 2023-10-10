@@ -103,6 +103,7 @@ impl Project {
                 storage(6),
                 storage(7),
                 storage(8),
+                //storage(9),
             ],
         );
 
@@ -118,6 +119,7 @@ impl Project {
                 storage_writeable(6),
                 storage_writeable(7),
                 storage_writeable(8),
+                //storage_writeable(9),
             ],
         );
 
