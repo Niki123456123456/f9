@@ -25,7 +25,7 @@ impl ComputeShader {
         get_draw_count: &'static (dyn Fn(&Project) -> (u32, u32, u32) + Send + Sync),
     ) -> Self {
         Self {
-            pipeline: build_compute_shader(device, label, source, layout),
+            pipeline: build_compute_shader(device, label, &(include_str!("./../shaders/common.wgsl").to_owned() + source), layout),
             get_draw_count: Box::new(get_draw_count),
         }
     }
@@ -47,7 +47,7 @@ impl RenderShader {
         get_draw_count: &'static (dyn Fn(&Project) -> u32 + Send + Sync),
     ) -> Self {
         Self {
-            pipeline: build_shader(device, state, label, source, layout, topology),
+            pipeline: build_shader(device, state, label, &(include_str!("./../shaders/common.wgsl").to_owned() + source), layout, topology),
             get_draw_count: Box::new(get_draw_count),
         }
     }
@@ -233,7 +233,6 @@ impl Renderer {
 
     pub fn compute<'a>(&'a self, mut pass: wgpu::ComputePass<'a>, project: &'a Project) {
         pass.set_bind_group(0, &project.state.uniform_buffer.compute_bind_group, &[]);
-        //return;
         for shader in self.compute_shaders.iter() {
             pass.set_pipeline(&shader.pipeline);
             let draw_count = (shader.get_draw_count)(&project);
