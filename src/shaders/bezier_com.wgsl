@@ -1,6 +1,8 @@
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
 @group(0) @binding(4) var<storage, read_write> pointBuffer : PointBuffer;
 @group(0) @binding(6) var<storage, read_write> bezierBuffer : BezierBuffer;
+@group(1) @binding(0) var<storage, read_write> hoverCounter : AtomicCounter;
+@group(1) @binding(1) var<storage, read_write> hoverBuffer : HoverBuffer;
 
 fn get_position(P0: vec3f, P1: vec3f, P2: vec3f, P3: vec3f, t : f32) -> vec3f {
     let position = pow(1.0 - t, 3.0) * P0
@@ -65,6 +67,15 @@ fn main(@builtin(global_invocation_id) i : vec3<u32>) {
 
   if(d <= 20.){
     bezierBuffer.values[i.x].flags = bezierBuffer.values[i.x].flags | 2;
+
+    let pos = get_position(point_a, control_a, control_b, point_b, t);
+    let hover_index = atomicAdd(&hoverCounter.counter, 1u);
+    hoverBuffer.values[hover_index].index = i.x;
+    hoverBuffer.values[hover_index].ctype = 4; // bezier
+    hoverBuffer.values[hover_index].distance = distance(pos, vec3f(uniforms.camera_origin_x, uniforms.camera_origin_y, uniforms.camera_origin_z));
+    hoverBuffer.values[hover_index].position_x = pos.x;
+    hoverBuffer.values[hover_index].position_y = pos.y;
+    hoverBuffer.values[hover_index].position_z = pos.z;
   } else {
     bezierBuffer.values[i.x].flags = bezierBuffer.values[i.x].flags & (~2);
   }

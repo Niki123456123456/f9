@@ -50,6 +50,8 @@ pub enum ComponentType {
     Line = 2,
     Circle = 3,
     Bezier = 4,
+    Arrow = 5,
+    ArrowPlane = 6,
 }
 
 #[derive(Clone, Debug)]

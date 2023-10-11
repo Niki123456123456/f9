@@ -7,6 +7,8 @@ struct Triangle2f{
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
 @group(0) @binding(4) var<storage, read> pointBuffer : PointBuffer;
 @group(0) @binding(8) var<storage, read_write> vertexBuffer : VertexBuffer;
+@group(1) @binding(0) var<storage, read_write> hoverCounter : AtomicCounter;
+@group(1) @binding(1) var<storage, read_write> hoverBuffer : HoverBuffer;
 
 fn is_point_in(triangle : Triangle2f, point: vec2f) -> bool {
         // https://blackpawn.com/texts/pointinpoly/
@@ -62,6 +64,13 @@ fn main(@builtin(global_invocation_id) i : vec3<u32>) {
 
   if(is_point_in(triangle0, mouse_pos) || is_point_in(triangle1, mouse_pos)){
     vertexBuffer.values[i.x].flags = vertexBuffer.values[i.x].flags | 2;
+    let hover_index = atomicAdd(&hoverCounter.counter, 1u);
+    hoverBuffer.values[hover_index].index = i.x;
+    hoverBuffer.values[hover_index].ctype = 6; // arrow plane
+    hoverBuffer.values[hover_index].distance = 0.0;
+    hoverBuffer.values[hover_index].position_x = 0.0;
+    hoverBuffer.values[hover_index].position_y = 0.0;
+    hoverBuffer.values[hover_index].position_z = 0.0;
   } else {
     vertexBuffer.values[i.x].flags = vertexBuffer.values[i.x].flags & (~2);
   }
