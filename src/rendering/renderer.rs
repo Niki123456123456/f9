@@ -329,7 +329,7 @@ pub fn build_compute_shader(
         layout: Some(
             &device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some(label),
-                bind_group_layouts: &[&layout, &get_layout(device, &[storage_writeable(0)])],
+                bind_group_layouts: &[&layout, &get_layout(device, &[storage_writeable(0),storage_writeable(1)])],
                 push_constant_ranges: &[],
             }),
         ),

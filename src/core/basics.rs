@@ -281,3 +281,11 @@ pub fn power(f: f32, power: i32) -> f32 {
     }
     return result;
 }
+
+pub fn vec_from_bytes<T>(bytes: Vec<u8>) -> Vec<T> {
+    let ptr = bytes.as_ptr() as *mut T;
+    let len = bytes.len() / std::mem::size_of::<T>();
+    let cap = bytes.capacity() / std::mem::size_of::<T>();
+    std::mem::forget(bytes); // This prevents `bytes` from being deallocated
+    unsafe { Vec::from_raw_parts(ptr, len, cap) }
+}

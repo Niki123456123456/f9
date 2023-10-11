@@ -2,6 +2,7 @@
 @group(0) @binding(4) var<storage, read_write> pointBuffer : PointBuffer;
 @group(0) @binding(5) var<storage, read_write> lineBuffer : LineBuffer;
 @group(1) @binding(0) var<storage, read_write> hoverCounter : AtomicCounter;
+@group(1) @binding(1) var<storage, read_write> hoverBuffer : HoverBuffer;
 
 fn perp(a : vec2f, b : vec2f, c : vec2f) -> f32 { // perpendicular distance between line a+t*b and point c
     let distance = length(c - a - dot(c - a, b) * b);
@@ -41,6 +42,12 @@ fn main(@builtin(global_invocation_id) i : vec3<u32>) {
   if(d <= 20.){
     lineBuffer.values[i.x].flags = lineBuffer.values[i.x].flags | 2;
     let hover_index = atomicAdd(&hoverCounter.counter, 1u);
+    hoverBuffer.values[hover_index].index = i.x;
+    hoverBuffer.values[hover_index].ctype = 2; // line
+    hoverBuffer.values[hover_index].distance = distance(point, vec3f(uniforms.camera_origin_x, uniforms.camera_origin_y, uniforms.camera_origin_z));
+    hoverBuffer.values[hover_index].position_x = point.x;
+    hoverBuffer.values[hover_index].position_y = point.y;
+    hoverBuffer.values[hover_index].position_z = point.z;
   } else {
     lineBuffer.values[i.x].flags = lineBuffer.values[i.x].flags & (~2);
   }

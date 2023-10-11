@@ -18,40 +18,26 @@ use std::{
 
 use crate::{
     camera::{self, Camera},
+    commands::command::{get_commands, Command},
     project::{self, Project, ProjectState},
-    rendering::renderer::{self, Renderer},
-    ui::{tabcontrol, main_menu::draw_commands}, commands::command::{Command, get_commands},
+    rendering::{
+        buffer_reader::BufferReader,
+        renderer::{self, Renderer},
+    },
+    ui::{main_menu::draw_commands, tabcontrol}, components::component::HoverElement,
 };
 
 pub struct AppState {
     pub projects: Vec<Project>,
     pub selected_project: usize,
     pub renderer: Renderer,
-    
 }
-
-#[derive(serde::Deserialize, serde::Serialize)]
-#[serde(default)]
 pub struct App {
-    #[serde(skip)]
-    adapter_info: Option<AdapterInfo>,
-    #[serde(skip)]
-    last_render_time: Instant,
-    #[serde(skip)]
+    pub adapter_info: AdapterInfo,
+    pub last_render_time: Instant,
     pub selected_project: usize,
-    #[serde(skip)]
     pub commands: Vec<Command>,
-}
-
-impl Default for App {
-    fn default() -> Self {
-        Self {
-            adapter_info: None,
-            last_render_time: Instant::now(),
-            selected_project: 0,
-            commands: get_commands(),
-        }
-    }
+    pub buffer_reader: BufferReader,
 }
 
 impl App {
@@ -59,10 +45,12 @@ impl App {
         let wgpu_render_state = cc.wgpu_render_state.as_ref().unwrap();
         let device = &wgpu_render_state.device;
 
-        let mut app: App = if let Some(storage) = cc.storage {
-            eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default()
-        } else {
-            Default::default()
+        let app = App {
+            adapter_info: wgpu_render_state.adapter.get_info(),
+            last_render_time: Instant::now(),
+            selected_project: 0,
+            commands: get_commands(),
+            buffer_reader: BufferReader::new(device, &wgpu_render_state.queue, 1_000_000),
         };
 
         wgpu_render_state
@@ -74,8 +62,6 @@ impl App {
                 selected_project: 0,
                 renderer: crate::rendering::renderer::Renderer::new(device, wgpu_render_state),
             });
-
-        app.adapter_info = Some(wgpu_render_state.adapter.get_info());
         return app;
     }
 }
@@ -106,10 +92,6 @@ impl CallbackTrait for RenderCallback {
 }
 
 impl eframe::App for App {
-    fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        eframe::set_value(storage, eframe::APP_KEY, self);
-    }
-
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default()
             .frame(egui::Frame {
@@ -148,27 +130,50 @@ impl eframe::App for App {
                     flush_buffer(project, renderstate, rect, ctx);
                 }
                 run_compute_pass(renderstate);
+                {
+                    let mut writer = renderstate.renderer.write();
+                    let appstate: &mut AppState = writer.callback_resources.get_mut().unwrap();
+                    let project = &mut appstate.projects[appstate.selected_project];
 
-                
+                    let data = self.buffer_reader.read_buffer(
+                        &project.state.uniform_buffer.atomic_buffer,
+                        0,
+                        32,
+                    );
+                    let counter: u32 = ((data[3] as u32) << 24)
+                        | ((data[2] as u32) << 16)
+                        | ((data[1] as u32) << 8)
+                        | (data[0] as u32);
+
+                    let hover_elements: Vec<HoverElement> = self.buffer_reader.read_buffer_gen(
+                            &project.state.uniform_buffer.hover_buffer,
+                            0,
+                            counter as u64,
+                        );
+
+                    print!("hover: {} ", hover_elements.len());
+                    for hover in hover_elements.iter()  {
+                        print!("{:?} ", hover.ctype)
+                    }
+                    println!("");
+                }
 
                 run_render_pass(ui, rect);
             });
 
-        if let Some(adapter_info) = &self.adapter_info {
-            egui::Window::new("GPU Info").show(&ctx, |ui| {
-                ui.label(format!("backend: {:?}", adapter_info.backend));
-                ui.label(format!("name: {}", adapter_info.name));
-                ui.label(format!("device: {}", adapter_info.device));
-                ui.label(format!("device_type: {:?}", adapter_info.device_type));
-                ui.label(format!("driver: {}", adapter_info.driver));
-                ui.label(format!("driver_info: {}", adapter_info.driver_info));
-                let ele = self.last_render_time.elapsed();
-                let fps = 1.0 / ele.as_secs_f64();
-                ui.label(format!("duration {:.0}ms", ele.as_millis() as f64));
-                ui.label(format!("frames {:.0}/s", fps));
-                self.last_render_time = Instant::now();
-            });
-        }
+        egui::Window::new("GPU Info").show(&ctx, |ui| {
+            ui.label(format!("backend: {:?}", &self.adapter_info.backend));
+            ui.label(format!("name: {}", &self.adapter_info.name));
+            ui.label(format!("device: {}", &self.adapter_info.device));
+            ui.label(format!("device_type: {:?}", &self.adapter_info.device_type));
+            ui.label(format!("driver: {}", &self.adapter_info.driver));
+            ui.label(format!("driver_info: {}", &self.adapter_info.driver_info));
+            let ele = self.last_render_time.elapsed();
+            let fps = 1.0 / ele.as_secs_f64();
+            ui.label(format!("duration {:.0}ms", ele.as_millis() as f64));
+            ui.label(format!("frames {:.0}/s", fps));
+            self.last_render_time = Instant::now();
+        });
 
         ctx.request_repaint();
     }
@@ -189,6 +194,10 @@ fn flush_buffer(project: &mut Project, renderstate: &RenderState, rect: Rect, ct
         .sub(project.state.camera.position)
         .normalize();
 
+    project
+        .state
+        .uniform_buffer
+        .clear_hover_counter(&renderstate.queue);
     project.state.uniform_buffer.write(
         &renderstate.queue,
         0,

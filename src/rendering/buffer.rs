@@ -5,6 +5,8 @@ use eframe::wgpu::{
 };
 use glam::Mat4;
 
+use crate::components::component::HoverElement;
+
 use super::renderer::{get_layout, storage_writeable};
 
 pub struct UniformBuffer {
@@ -13,6 +15,8 @@ pub struct UniformBuffer {
     pub atomic_bind_group: wgpu::BindGroup,
     pub uniform_buffer: wgpu::Buffer,
     pub atomic_buffer: wgpu::Buffer,
+    pub hover_buffer: wgpu::Buffer,
+    pub device: Arc<Device>,
 }
 
 impl UniformBuffer {
@@ -31,9 +35,16 @@ impl UniformBuffer {
         });
 
         let atomic_buffer = device.create_buffer(&BufferDescriptor {
-            label: None,
+            label: Some("atomic_buffer"),
             size: 32,
-            usage: BufferUsages::COPY_DST | BufferUsages::STORAGE,
+            usage: BufferUsages::COPY_DST | BufferUsages::COPY_SRC | BufferUsages::STORAGE,
+            mapped_at_creation: false,
+        });
+
+        let hover_buffer = device.create_buffer(&BufferDescriptor {
+            label: None,
+            size: 1000 * core::mem::size_of::<HoverElement>() as u64,
+            usage: BufferUsages::COPY_DST | BufferUsages::COPY_SRC | BufferUsages::STORAGE,
             mapped_at_creation: false,
         });
 
@@ -62,11 +73,17 @@ impl UniformBuffer {
 
         let atomic_bind_group = device.create_bind_group(&BindGroupDescriptor {
             label: None,
-            layout: &get_layout(device, &[storage_writeable(0)]),
-            entries: &vec![wgpu::BindGroupEntry {
-                binding: 0,
-                resource: atomic_buffer.as_entire_binding(),
-            }],
+            layout: &get_layout(device, &[storage_writeable(0), storage_writeable(1)]),
+            entries: &vec![
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: atomic_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: hover_buffer.as_entire_binding(),
+                },
+            ],
         });
 
         return Self {
@@ -75,7 +92,14 @@ impl UniformBuffer {
             uniform_buffer,
             atomic_buffer,
             atomic_bind_group,
+            hover_buffer,
+            device: device.clone(),
         };
+    }
+
+
+    pub fn clear_hover_counter(&self, queue: &wgpu::Queue) {
+        queue.write_buffer(&self.atomic_buffer, 0, &[0, 0, 0, 0]);
     }
 
     pub fn write<A: bytemuck::NoUninit>(&self, queue: &wgpu::Queue, offset: u64, a: &[A]) {

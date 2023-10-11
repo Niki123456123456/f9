@@ -175,3 +175,4 @@ pub trait IComponent {
 
     fn clon(&self) -> Box<dyn IComponent>;
 }
+

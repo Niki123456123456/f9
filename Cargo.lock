@@ -1145,6 +1145,7 @@ dependencies = [
  "egui",
  "egui_extras",
  "env_logger",
+ "futures-channel",
  "glam",
  "image",
  "instant",

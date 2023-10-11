@@ -57,12 +57,11 @@ struct Circle {
 
 struct HoverElement{
     index: u32,
-    ctype: u32,
+    ctype: i32,
     distance : f32,
-    position_x : u32,
-    position_y : u32,
-    position_z : u32,
-    flags : i32,
+    position_x : f32,
+    position_y : f32,
+    position_z : f32,
 };
 
 // buffers
@@ -84,6 +83,9 @@ struct CircleBuffer {
 
 struct AtomicCounter {
     counter: atomic<u32>,
+};
+struct HoverBuffer {
+  values: array<HoverElement>,
 };
 
 fn to_screen_position(position : vec3f) -> vec2f {
