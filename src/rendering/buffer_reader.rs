@@ -41,7 +41,7 @@ impl BufferReader {
         });
         self.device.poll(Maintain::Wait);
         let mut vec = vec![];
-        loop {
+        for i in 0..1000 {
             if let Ok(Some(t)) = receiver.try_recv() {
                 let data: &[u8] = &slice.get_mapped_range();
                 vec = data.to_vec();

@@ -19,12 +19,13 @@ use std::{
 use crate::{
     camera::{self, Camera},
     commands::command::{get_commands, Command},
+    components::component::HoverElement,
     project::{self, Project, ProjectState},
     rendering::{
         buffer_reader::BufferReader,
         renderer::{self, Renderer},
     },
-    ui::{main_menu::draw_commands, tabcontrol}, components::component::HoverElement,
+    ui::{main_menu::draw_commands, tabcontrol},
 };
 
 pub struct AppState {
@@ -92,9 +93,7 @@ impl CallbackTrait for RenderCallback {
 }
 
 impl eframe::App for App {
-    fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        
-    }
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {}
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default()
@@ -144,22 +143,24 @@ impl eframe::App for App {
                         0,
                         32,
                     );
-                    let counter: u32 = ((data[3] as u32) << 24)
-                        | ((data[2] as u32) << 16)
-                        | ((data[1] as u32) << 8)
-                        | (data[0] as u32);
+                    if data.len() > 0 {
+                        let counter: u32 = ((data[3] as u32) << 24)
+                            | ((data[2] as u32) << 16)
+                            | ((data[1] as u32) << 8)
+                            | (data[0] as u32);
 
-                    let hover_elements: Vec<HoverElement> = self.buffer_reader.read_buffer_gen(
+                        let hover_elements: Vec<HoverElement> = self.buffer_reader.read_buffer_gen(
                             &project.state.uniform_buffer.hover_buffer,
                             0,
                             counter as u64,
                         );
 
-                    print!("hover: {} ", hover_elements.len());
-                    for hover in hover_elements.iter()  {
-                        print!("{:?} ", hover.ctype)
+                        print!("hover: {} ", hover_elements.len());
+                        for hover in hover_elements.iter() {
+                            print!("{:?} ", hover.ctype)
+                        }
+                        println!("");
                     }
-                    println!("");
                 }
 
                 run_render_pass(ui, rect);
