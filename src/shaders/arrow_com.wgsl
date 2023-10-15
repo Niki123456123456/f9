@@ -1,8 +1,7 @@
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
-@group(0) @binding(4) var<storage, read> pointBuffer : PointBuffer;
-@group(0) @binding(3) var<storage, read_write> vertexBuffer : VertexBuffer;
 @group(1) @binding(0) var<storage, read_write> hoverCounter : AtomicCounter;
 @group(1) @binding(1) var<storage, read_write> hoverBuffer : HoverBuffer;
+@group(2) @binding(0) var<storage, read_write> vertexBuffer : VertexBuffer;
 
 fn perp(a : vec2f, b : vec2f, c : vec2f) -> f32 { // perpendicular distance between line a+t*b and point c
     let distance = length(c - a - dot(c - a, b) * b);

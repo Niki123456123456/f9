@@ -5,10 +5,9 @@ struct Triangle2f{
 }
 
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
-@group(0) @binding(4) var<storage, read> pointBuffer : PointBuffer;
-@group(0) @binding(8) var<storage, read_write> vertexBuffer : VertexBuffer;
 @group(1) @binding(0) var<storage, read_write> hoverCounter : AtomicCounter;
 @group(1) @binding(1) var<storage, read_write> hoverBuffer : HoverBuffer;
+@group(2) @binding(0) var<storage, read_write> vertexBuffer : VertexBuffer;
 
 fn is_point_in(triangle : Triangle2f, point: vec2f) -> bool {
         // https://blackpawn.com/texts/pointinpoly/

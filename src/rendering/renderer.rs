@@ -3,106 +3,136 @@ use std::sync::Arc;
 use eframe::{
     egui_wgpu::RenderState,
     wgpu::{
-        self, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, ComputePipeline,
-        DepthStencilState, Device, PrimitiveState, PrimitiveTopology, RenderPipeline,
-        RenderPipelineDescriptor, ShaderModuleDescriptor, ShaderSource, TextureFormat,
+        self, BindGroupDescriptor, BindGroupLayout, BindGroupLayoutDescriptor,
+        BindGroupLayoutEntry, ComputePipeline, DepthStencilState, Device, PrimitiveState,
+        PrimitiveTopology, RenderPipeline, RenderPipelineDescriptor, ShaderModuleDescriptor,
+        ShaderSource, TextureFormat,
     },
 };
 
-use crate::project::Project;
+use crate::{
+    component_collection::ComponentCollection,
+    components,
+    project::{self, Project},
+};
 
-pub struct ComputeShader {
-    pipeline: ComputePipeline,
-    get_draw_count: Box<dyn Fn(&Project) -> (u32, u32, u32) + Send + Sync>,
+pub struct ComputeShader<T> {
+    // RenderPipeline, ComputePipeline
+    pub pipeline: T,
+    pub get_draw_count: Box<dyn Fn(&Project) -> (u32, u32, u32) + Send + Sync>,
+    pub storage_count: u32,
+    pub get_buffers: Box<dyn Fn(&ComponentCollection) -> Vec<&wgpu::Buffer> + Send + Sync>,
+    pub get_bindgroup: Box<dyn Fn(&Device, u32) -> BindGroupLayout + Send + Sync>,
+    pub label: &'static str,
 }
 
-impl ComputeShader {
-    pub fn new(
+impl<T> ComputeShader<T> {
+    pub fn get_bindgroup(
+        &self,
         device: &Arc<Device>,
-        layout: &BindGroupLayout,
-        label: &str,
-        source: &str,
-        get_draw_count: &'static (dyn Fn(&Project) -> (u32, u32, u32) + Send + Sync),
-    ) -> Self {
-        Self {
-            pipeline: build_compute_shader(
-                device,
-                label,
-                &(include_str!("./../shaders/common.wgsl").to_owned() + source),
-                layout,
-            ),
-            get_draw_count: Box::new(get_draw_count),
-        }
+        components: &ComponentCollection,
+    ) -> wgpu::BindGroup {
+        let buffers: Vec<_> = (self.get_buffers)(components)
+            .iter()
+            .enumerate()
+            .map(|(i, buffer)| wgpu::BindGroupEntry {
+                binding: i as u32,
+                resource: buffer.as_entire_binding(),
+            })
+            .collect();
+
+        return device.create_bind_group(&BindGroupDescriptor {
+            label: None,
+            layout: &(self.get_bindgroup)(&device, self.storage_count),
+            entries: &buffers,
+        });
     }
 }
 
-pub struct RenderShader {
-    pipeline: RenderPipeline,
-    get_draw_count: Box<dyn Fn(&Project) -> u32 + Send + Sync>,
+pub fn new_compute_shader(
+    device: &Arc<Device>,
+    label: &'static str,
+    source: &str,
+    get_draw_count: &'static (dyn Fn(&Project) -> (u32, u32, u32) + Send + Sync),
+    get_buffers: &'static (dyn Fn(&ComponentCollection) -> Vec<&wgpu::Buffer> + Send + Sync),
+    storage_count: u32,
+) -> ComputeShader<ComputePipeline> {
+    ComputeShader {
+        pipeline: build_compute_shader(
+            device,
+            label,
+            &(include_str!("./../shaders/common.wgsl").to_owned() + source),
+            &get_buffer_layout(
+                device,
+                storage_count,
+                wgpu::ShaderStages::COMPUTE,
+                wgpu::BufferBindingType::Storage { read_only: false },
+            ),
+        ),
+        get_draw_count: Box::new(get_draw_count),
+        get_buffers: Box::new(get_buffers),
+        get_bindgroup: Box::new(|device, storage_count| {
+            get_buffer_layout(
+                device,
+                storage_count,
+                wgpu::ShaderStages::COMPUTE,
+                wgpu::BufferBindingType::Storage { read_only: false },
+            )
+        }),
+        storage_count,
+        label,
+    }
 }
 
-impl RenderShader {
-    pub fn new(
-        device: &Arc<Device>,
-        state: &RenderState,
-        layout: &BindGroupLayout,
-        label: &str,
-        source: &str,
-        topology: PrimitiveTopology,
-        get_draw_count: &'static (dyn Fn(&Project) -> u32 + Send + Sync),
-    ) -> Self {
-        Self {
-            pipeline: build_shader(
+pub fn new_shader(
+    device: &Arc<Device>,
+    state: &RenderState,
+    label: &'static str,
+    source: &str,
+    topology: PrimitiveTopology,
+    get_draw_count: &'static (dyn Fn(&Project) -> u32 + Send + Sync),
+    get_buffers: &'static (dyn Fn(&ComponentCollection) -> Vec<&wgpu::Buffer> + Send + Sync),
+    storage_count: u32,
+) -> ComputeShader<RenderPipeline> {
+    ComputeShader {
+        pipeline: build_shader(
+            device,
+            state,
+            label,
+            &(include_str!("./../shaders/common.wgsl").to_owned() + source),
+            &get_buffer_layout(
                 device,
-                state,
-                label,
-                &(include_str!("./../shaders/common.wgsl").to_owned() + source),
-                layout,
-                topology,
+                storage_count,
+                wgpu::ShaderStages::VERTEX_FRAGMENT,
+                wgpu::BufferBindingType::Storage { read_only: true },
             ),
-            get_draw_count: Box::new(get_draw_count),
-        }
+            topology,
+        ),
+        get_draw_count: Box::new(|p| {
+            let count = (get_draw_count)(p);
+            return (count, 1, 1);
+        }),
+        get_buffers: Box::new(get_buffers),
+        get_bindgroup: Box::new(|device, storage_count| {
+            get_buffer_layout(
+                device,
+                storage_count,
+                wgpu::ShaderStages::VERTEX_FRAGMENT,
+                wgpu::BufferBindingType::Storage { read_only: true },
+            )
+        }),
+        storage_count,
+        label,
     }
 }
 
 pub struct Renderer {
-    shaders: Vec<RenderShader>,
-    compute_shaders: Vec<ComputeShader>,
+    pub shaders: Vec<ComputeShader<RenderPipeline>>,
+    pub compute_shaders: Vec<ComputeShader<ComputePipeline>>,
 }
 
 impl Renderer {
     pub fn new(device: &Arc<Device>, state: &RenderState) -> Self {
-        let layout = get_layout(
-            device,
-            &[
-                uniform(0),
-                storage(1),
-                storage(2),
-                storage(3),
-                storage(4),
-                storage(5),
-                storage(6),
-                storage(7),
-                storage(8),
-                //storage(9),
-            ],
-        );
-
-        let compute_layout = get_layout(
-            device,
-            &[
-                uniform(0),
-                storage_writeable(1),
-                storage_writeable(2),
-                storage_writeable(3),
-                storage_writeable(4),
-                storage_writeable(5),
-                storage_writeable(6),
-                storage_writeable(7),
-                storage_writeable(8),
-                //storage_writeable(9),
-            ],
-        );
         let shaders = vec![
             /*RenderShader::new(
                 device,
@@ -120,122 +150,136 @@ impl Renderer {
                 include_str!("./../shaders/uv_sphere.wgsl"),
                 &|project| 8 * 8 * 4,
             ),*/
-            RenderShader::new(
+            new_shader(
                 device,
                 state,
-                &layout,
                 "axis",
                 include_str!("./../shaders/axis.wgsl"),
                 PrimitiveTopology::LineList,
                 &|project| project.state.components.axises.array.len() as u32 * 4,
+                &|components| vec![&components.axises.buffer],
+                1,
             ),
-            RenderShader::new(
+            new_shader(
                 device,
                 state,
-                &layout,
                 "grid",
                 include_str!("./../shaders/grid.wgsl"),
                 PrimitiveTopology::LineList,
-                &|project| project.state.components.axises.array.len() as u32 * 11 * 2 * 2,
+                &|project| project.state.components.grids.array.len() as u32 * 11 * 2 * 2,
+                &|components| vec![&components.grids.buffer],
+                1,
             ),
-            RenderShader::new(
+            new_shader(
                 device,
                 state,
-                &layout,
                 "point",
                 include_str!("./../shaders/point.wgsl"),
                 PrimitiveTopology::TriangleList,
-                &|project| project.state.components.axises.array.len() as u32 * 6,
+                &|project| project.state.components.points.array.len() as u32 * 6,
+                &|components| vec![&components.points.buffer],
+                1,
             ),
-            RenderShader::new(
+            new_shader(
                 device,
                 state,
-                &layout,
                 "line",
                 include_str!("./../shaders/line.wgsl"),
                 PrimitiveTopology::LineList,
-                &|project| project.state.components.axises.array.len() as u32 * 2,
+                &|project| project.state.components.lines.array.len() as u32 * 2,
+                &|components| vec![&components.points.buffer, &components.lines.buffer],
+                2,
             ),
-            RenderShader::new(
+            new_shader(
                 device,
                 state,
-                &layout,
                 "bezier",
                 include_str!("./../shaders/bezier.wgsl"),
                 PrimitiveTopology::LineList,
                 &|project| project.state.components.beziers.array.len() as u32 * 2 * 51,
+                &|components| vec![&components.points.buffer, &components.beziers.buffer],
+                2,
             ),
-            RenderShader::new(
+            new_shader(
                 device,
                 state,
-                &layout,
                 "circle",
                 include_str!("./../shaders/circle.wgsl"),
                 PrimitiveTopology::LineList,
-                &|project| project.state.components.beziers.array.len() as u32 * 2 * 51,
+                &|project| project.state.components.circles.array.len() as u32 * 2 * 51,
+                &|components| vec![&components.points.buffer, &components.circles.buffer],
+                2,
             ),
-            RenderShader::new(
+            new_shader(
                 device,
                 state,
-                &layout,
                 "arrow",
                 include_str!("./../shaders/arrow.wgsl"),
                 PrimitiveTopology::LineList,
-                &|project| project.state.components.axises.array.len() as u32 * 6,
+                &|project| project.state.components.arrows.array.len() as u32 * 6,
+                &|components| vec![&components.arrows.buffer],
+                1,
             ),
-            RenderShader::new(
+            new_shader(
                 device,
                 state,
-                &layout,
                 "arrow_plane",
                 include_str!("./../shaders/arrow_plane.wgsl"),
                 PrimitiveTopology::TriangleList,
-                &|project| project.state.components.axises.array.len() as u32 * 6,
+                &|project| project.state.components.arrow_planes.array.len() as u32 * 6,
+                &|components| vec![&components.arrow_planes.buffer],
+                1,
             ),
         ];
 
         let compute_shaders = vec![
-            ComputeShader::new(
+            new_compute_shader(
                 device,
-                &compute_layout,
                 "point_com",
                 include_str!("./../shaders/point_com.wgsl"),
                 &|project| (project.state.components.points.array.len() as u32, 1, 1),
+                &|components| vec![&components.points.buffer],
+                1,
             ),
-            ComputeShader::new(
+            new_compute_shader(
                 device,
-                &compute_layout,
                 "line_com",
                 include_str!("./../shaders/line_com.wgsl"),
                 &|project| (project.state.components.lines.array.len() as u32, 1, 1),
+                &|components| vec![&components.points.buffer, &components.lines.buffer],
+                2,
             ),
-            ComputeShader::new(
+            new_compute_shader(
                 device,
-                &compute_layout,
                 "bezier_com",
                 include_str!("./../shaders/bezier_com.wgsl"),
                 &|project| (project.state.components.beziers.array.len() as u32, 1, 1),
+                &|components| vec![&components.points.buffer, &components.beziers.buffer],
+                2,
             ),
-            ComputeShader::new(
+            new_compute_shader(
                 device,
-                &compute_layout,
                 "circle_com",
                 include_str!("./../shaders/circle_com.wgsl"),
                 &|project| (project.state.components.circles.array.len() as u32, 1, 1),
+                &|components| vec![&components.points.buffer, &components.circles.buffer],
+                2,
             ),
-            ComputeShader::new(
+            new_compute_shader(
                 device,
-                &compute_layout,
                 "arrow_com",
                 include_str!("./../shaders/arrow_com.wgsl"),
                 &|project| (project.state.components.arrows.array.len() as u32, 1, 1),
+                &|components| vec![&components.arrows.buffer],
+                1,
             ),
-            ComputeShader::new(
+            new_compute_shader(
                 device,
-                &compute_layout,
                 "arrow_plane_com",
                 include_str!("./../shaders/arrow_plane_com.wgsl"),
-                &|project| (project.state.components.arrows.array.len() as u32, 1, 1),
+                &|project| (project.state.components.arrow_planes.array.len() as u32, 1, 1),
+                &|components| vec![&components.arrow_planes.buffer],
+                1,
             ),
         ];
 
@@ -246,21 +290,41 @@ impl Renderer {
     }
 
     pub fn compute<'a>(&'a self, mut pass: wgpu::ComputePass<'a>, project: &'a Project) {
-        pass.set_bind_group(0, &project.state.uniform_buffer.compute_bind_group, &[]);
-        pass.set_bind_group(1, &project.state.uniform_buffer.atomic_bind_group, &[]);
+        pass.set_bind_group(0, &project.state.uniform_buffer.uniform_bind_group, &[]);
+        pass.set_bind_group(1, &project.state.uniform_buffer.hover_bind_group, &[]);
         for shader in self.compute_shaders.iter() {
+            pass.set_bind_group(
+                2,
+                &project
+                    .state
+                    .uniform_buffer
+                    .bind_groups
+                    .get(shader.label)
+                    .unwrap(),
+                &[],
+            );
             pass.set_pipeline(&shader.pipeline);
             let draw_count = (shader.get_draw_count)(&project);
             pass.dispatch_workgroups(draw_count.0, draw_count.1, draw_count.2);
         }
     }
 
-    pub fn paint<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>, project: &'a Project) {
-        render_pass.set_bind_group(0, &project.state.uniform_buffer.bind_group, &[]);
+    pub fn paint<'a>(&'a self, pass: &mut wgpu::RenderPass<'a>, project: &'a Project) {
+        pass.set_bind_group(0, &project.state.uniform_buffer.uniform_bind_group, &[]);
         for shader in self.shaders.iter() {
-            render_pass.set_pipeline(&shader.pipeline);
+            pass.set_bind_group(
+                1,
+                &project
+                    .state
+                    .uniform_buffer
+                    .bind_groups
+                    .get(shader.label)
+                    .unwrap(),
+                &[],
+            );
+            pass.set_pipeline(&shader.pipeline);
             let draw_count = (shader.get_draw_count)(&project);
-            render_pass.draw(0..draw_count, 0..1);
+            pass.draw(0..draw_count.0, 0..1);
         }
     }
 }
@@ -305,12 +369,35 @@ pub fn storage_writeable(index: u32) -> BindGroupLayoutEntry {
 }
 
 pub fn get_layout(device: &Arc<Device>, buffers: &[BindGroupLayoutEntry]) -> BindGroupLayout {
-    let bind_group_layout: BindGroupLayout =
-        device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-            label: None,
-            entries: buffers,
-        });
-    return bind_group_layout;
+    return device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+        label: None,
+        entries: buffers,
+    });
+}
+
+pub fn get_buffer_layout(
+    device: &Device,
+    count: u32,
+    visibility: wgpu::ShaderStages,
+    ty: wgpu::BufferBindingType,
+) -> BindGroupLayout {
+    let v: Vec<_> = (0..count)
+        .into_iter()
+        .map(|index| BindGroupLayoutEntry {
+            binding: index,
+            visibility,
+            ty: wgpu::BindingType::Buffer {
+                ty,
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+            count: None,
+        })
+        .collect();
+    return device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+        label: None,
+        entries: &v,
+    });
 }
 
 pub fn build_compute_shader(
@@ -329,7 +416,11 @@ pub fn build_compute_shader(
         layout: Some(
             &device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some(label),
-                bind_group_layouts: &[&layout, &get_layout(device, &[storage_writeable(0),storage_writeable(1)])],
+                bind_group_layouts: &[
+                    &get_layout(device, &[uniform(0)]),
+                    &get_layout(device, &[storage_writeable(0), storage_writeable(1)]),
+                    &layout,
+                ],
                 push_constant_ranges: &[],
             }),
         ),
@@ -357,7 +448,7 @@ pub fn build_shader(
         layout: Some(
             &device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some(label),
-                bind_group_layouts: &[&layout],
+                bind_group_layouts: &[&get_layout(device, &[uniform(0)]), &layout],
                 push_constant_ranges: &[],
             }),
         ),

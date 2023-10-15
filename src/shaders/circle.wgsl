@@ -4,8 +4,8 @@ struct VertexOutput {
 };
 
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
-@group(0) @binding(4) var<storage, read> pointBuffer : PointBuffer;
-@group(0) @binding(7) var<storage, read> circleBuffer : CircleBuffer;
+@group(1) @binding(0) var<storage, read> pointBuffer : PointBuffer;
+@group(1) @binding(1) var<storage, read> circleBuffer : CircleBuffer;
 
 
 

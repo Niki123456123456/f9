@@ -54,14 +54,15 @@ impl App {
             buffer_reader: BufferReader::new(device, &wgpu_render_state.queue, 1_000_000),
         };
 
+        let renderer = crate::rendering::renderer::Renderer::new(device, wgpu_render_state);
         wgpu_render_state
             .renderer
             .write()
             .callback_resources
             .insert(AppState {
-                projects: vec![Project::new(device, &wgpu_render_state.queue)],
+                projects: vec![Project::new(device, &wgpu_render_state.queue, &renderer)],
                 selected_project: 0,
-                renderer: crate::rendering::renderer::Renderer::new(device, wgpu_render_state),
+                renderer,
             });
         return app;
     }
@@ -252,12 +253,13 @@ fn run_compute_pass(renderstate: &RenderState) {
 fn tabcontrolheader(renderstate: &RenderState, ui: &mut egui::Ui) {
     let mut writer = renderstate.renderer.write();
     let appstate: &mut AppState = writer.callback_resources.get_mut().unwrap();
+    
     tabcontrol::show_tabs(
         ui,
         &mut appstate.projects,
         &mut appstate.selected_project,
         |p: &Project| p.name.clone(),
-        || Project::new(&renderstate.device, &renderstate.queue),
+        || Project::new(&renderstate.device, &renderstate.queue, &appstate.renderer),
     );
 }
 

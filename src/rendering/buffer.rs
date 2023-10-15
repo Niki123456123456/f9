@@ -1,32 +1,27 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use eframe::wgpu::{
     self, BindGroupDescriptor, BindGroupLayout, Buffer, BufferDescriptor, BufferUsages, Device,
 };
 use glam::Mat4;
 
-use crate::components::component::HoverElement;
+use crate::{component_collection::ComponentCollection, components::component::HoverElement};
 
-use super::renderer::{get_layout, storage_writeable};
+use super::renderer::{get_layout, storage_writeable, uniform, Renderer};
 
 pub struct UniformBuffer {
-    pub bind_group: wgpu::BindGroup,
-    pub compute_bind_group: wgpu::BindGroup,
-    pub atomic_bind_group: wgpu::BindGroup,
+    pub device: Arc<Device>,
     pub uniform_buffer: wgpu::Buffer,
     pub atomic_buffer: wgpu::Buffer,
     pub hover_buffer: wgpu::Buffer,
-    pub device: Arc<Device>,
+
+    pub uniform_bind_group: wgpu::BindGroup,
+    pub hover_bind_group: wgpu::BindGroup,
+    pub bind_groups: HashMap<String, wgpu::BindGroup>,
 }
 
 impl UniformBuffer {
-    pub fn new(
-        device: &Arc<Device>,
-        layout: &BindGroupLayout,
-        compute_layout: &BindGroupLayout,
-        size: u64,
-        buffers: Vec<&Buffer>,
-    ) -> Self {
+    pub fn new(device: &Arc<Device>, size: u64, components: &ComponentCollection, renderer : &Renderer) -> Self {
         let uniform_buffer = device.create_buffer(&BufferDescriptor {
             label: None,
             size,
@@ -48,30 +43,16 @@ impl UniformBuffer {
             mapped_at_creation: false,
         });
 
-        let mut bind_group_entries = vec![wgpu::BindGroupEntry {
-            binding: 0,
-            resource: uniform_buffer.as_entire_binding(),
-        }];
-        for (i, buffer) in buffers.iter().enumerate() {
-            bind_group_entries.push(wgpu::BindGroupEntry {
-                binding: i as u32 + 1,
-                resource: buffer.as_entire_binding(),
-            })
-        }
-
-        let bind_group = device.create_bind_group(&BindGroupDescriptor {
+        let uniform_bind_group = device.create_bind_group(&BindGroupDescriptor {
             label: None,
-            layout,
-            entries: &bind_group_entries,
+            layout: &get_layout(device, &[uniform(0)]),
+            entries: &vec![wgpu::BindGroupEntry {
+                binding: 0,
+                resource: uniform_buffer.as_entire_binding(),
+            }],
         });
 
-        let compute_bind_group = device.create_bind_group(&BindGroupDescriptor {
-            label: None,
-            layout: compute_layout,
-            entries: &bind_group_entries,
-        });
-
-        let atomic_bind_group = device.create_bind_group(&BindGroupDescriptor {
+        let hover_bind_group = device.create_bind_group(&BindGroupDescriptor {
             label: None,
             layout: &get_layout(device, &[storage_writeable(0), storage_writeable(1)]),
             entries: &vec![
@@ -86,17 +67,24 @@ impl UniformBuffer {
             ],
         });
 
+        let mut bind_groups = HashMap::new();
+        for shader in renderer.shaders.iter() {
+            bind_groups.insert(shader.label.to_string(), shader.get_bindgroup(device, components));
+        }
+        for shader in renderer.compute_shaders.iter() {
+            bind_groups.insert(shader.label.to_string(), shader.get_bindgroup(device, components));
+        }
+
         return Self {
-            bind_group,
-            compute_bind_group,
+            bind_groups,
+            uniform_bind_group,
             uniform_buffer,
             atomic_buffer,
-            atomic_bind_group,
+            hover_bind_group,
             hover_buffer,
             device: device.clone(),
         };
     }
-
 
     pub fn clear_hover_counter(&self, queue: &wgpu::Queue) {
         queue.write_buffer(&self.atomic_buffer, 0, &[0, 0, 0, 0]);

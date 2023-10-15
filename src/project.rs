@@ -1,6 +1,6 @@
-use std::{sync::Arc, collections::HashMap};
+use std::{collections::HashMap, sync::Arc};
 
-use async_channel::{Sender, Receiver};
+use async_channel::{Receiver, Sender};
 use eframe::wgpu::{self, Device};
 use glam::{vec3, Vec2};
 use uuid::Uuid;
@@ -8,20 +8,21 @@ use uuid::Uuid;
 use crate::{
     camera::Camera,
     component_collection::{ComponentArray, ComponentCollection},
-    components::{line, point, vertex, bezier, circle},
+    components::{bezier, circle, line, point, vertex},
+    dispatchers::dispatcher::{Disp, DispatcherEvent},
     rendering::{
         buffer::UniformBuffer,
-        renderer::{get_layout, storage, uniform, storage_writeable},
-    }, dispatchers::dispatcher::{DispatcherEvent, Disp},
+        renderer::{get_layout, storage, storage_writeable, uniform, self, Renderer},
+    },
 };
 
 pub struct ProjectState {
     pub camera: Camera,
     pub components: ComponentCollection,
     pub uniform_buffer: Arc<UniformBuffer>,
-    pub hover_pos : Vec2,
+    pub hover_pos: Vec2,
 
-    pub is_mouse_clicked : bool,
+    pub is_mouse_clicked: bool,
 }
 
 pub struct Project {
@@ -29,12 +30,12 @@ pub struct Project {
     pub state: ProjectState,
 
     pub dispatchers: HashMap<Uuid, Disp>,
-    pub sender: Sender< DispatcherEvent>,
+    pub sender: Sender<DispatcherEvent>,
     pub receiver: Receiver<DispatcherEvent>,
 }
 
 impl Project {
-    pub fn new(device: &Arc<Device>, queue: &wgpu::Queue) -> Project {
+    pub fn new(device: &Arc<Device>, queue: &wgpu::Queue, renderer : &Renderer) -> Project {
         let axises = ComponentArray::new(
             vec![
                 vertex::x().notvisible(),
@@ -71,12 +72,8 @@ impl Project {
             device,
         );
 
-        let circles = ComponentArray::new(
-            vec![
-                circle::new(0, 2.5, vec3(1.0, 0.0, 0.0), 0.0)
-            ],
-            device,
-        );
+        let circles =
+            ComponentArray::new(vec![circle::new(0, 2.5, vec3(1.0, 0.0, 0.0), 0.0)], device);
 
         let lines = ComponentArray::new(vec![line::new(0, 1)], device);
 
@@ -91,57 +88,21 @@ impl Project {
             device,
         );
 
-        let layout = get_layout(
-            device,
-            &[
-                uniform(0),
-                storage(1),
-                storage(2),
-                storage(3),
-                storage(4),
-                storage(5),
-                storage(6),
-                storage(7),
-                storage(8),
-                //storage(9),
-            ],
-        );
+        let components = ComponentCollection {
+            axises,
+            grids,
+            arrows,
+            arrow_planes,
+            points,
+            lines,
+            beziers,
+            circles,
+        };
 
-        let compute_layout = get_layout(
-            device,
-            &[
-                uniform(0),
-                storage_writeable(1),
-                storage_writeable(2),
-                storage_writeable(3),
-                storage_writeable(4),
-                storage_writeable(5),
-                storage_writeable(6),
-                storage_writeable(7),
-                storage_writeable(8),
-                //storage_writeable(9),
-            ],
-        );
-
-        let buffer = UniformBuffer::new(
-            device,
-            &layout, &compute_layout,
-            4 * 16 + 4 * 16,
-            vec![
-                &axises.buffer,
-                &grids.buffer,
-                &arrows.buffer,
-                &points.buffer,
-                &lines.buffer,
-                &beziers.buffer,
-                &circles.buffer,
-                &arrow_planes.buffer,
-            ],
-        );
+        let buffer = UniformBuffer::new(device, 4 * 16 + 4 * 16, &components, renderer);
 
         let (s, r): (Sender<DispatcherEvent>, Receiver<DispatcherEvent>) =
-        async_channel::unbounded();
-
+            async_channel::unbounded();
 
         Self {
             dispatchers: HashMap::new(),
@@ -151,20 +112,11 @@ impl Project {
             name: "New Project".into(),
             state: ProjectState {
                 camera: Camera::default(),
-                components: ComponentCollection {
-                    axises,
-                    grids,
-                    arrows,
-                    arrow_planes,
-                    points,
-                    lines,
-                    beziers,
-                    circles,
-                },
+                components,
                 uniform_buffer: Arc::new(buffer),
                 hover_pos: Vec2::ZERO,
 
-                is_mouse_clicked: false
+                is_mouse_clicked: false,
             },
         }
     }

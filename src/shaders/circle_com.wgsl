@@ -1,8 +1,8 @@
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
-@group(0) @binding(4) var<storage, read_write> pointBuffer : PointBuffer;
-@group(0) @binding(7) var<storage, read_write> circleBuffer : CircleBuffer;
 @group(1) @binding(0) var<storage, read_write> hoverCounter : AtomicCounter;
 @group(1) @binding(1) var<storage, read_write> hoverBuffer : HoverBuffer;
+@group(2) @binding(0) var<storage, read_write> pointBuffer : PointBuffer;
+@group(2) @binding(1) var<storage, read_write> circleBuffer : CircleBuffer;
 
 fn get_circle(t : f32, orientation : vec3f, heightFactor : f32, center : vec3f, radius : f32) -> vec3f {
     let x = (2.0 * PI * t);

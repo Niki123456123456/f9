@@ -1,7 +1,8 @@
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
-@group(0) @binding(4) var<storage, read_write> pointBuffer : PointBuffer;
 @group(1) @binding(0) var<storage, read_write> hoverCounter : AtomicCounter;
 @group(1) @binding(1) var<storage, read_write> hoverBuffer : HoverBuffer;
+@group(2) @binding(0) var<storage, read_write> pointBuffer : PointBuffer;
+
 
 @compute @workgroup_size(1, 1)
 fn main(@builtin(global_invocation_id) i : vec3<u32>) {
