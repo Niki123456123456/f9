@@ -34,6 +34,9 @@ fn vert_main(@builtin(vertex_index) i : u32) -> VertexOutput {
 @fragment
 fn frag_main(v: VertexOutput) -> @location(0) vec4f {
   var color = vec4f(1.0, 1.0, 1.0, 1.0);
+  if ((v.flags & 4) == 4){ // selected
+    color =  vec4f(0.0, 0.0, 1.0, 1.0);
+  }
   if ((v.flags & 2) == 2){ // hover
     color =  vec4f(1.0, 0.0, 0.0, 1.0);
   }

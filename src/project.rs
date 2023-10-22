@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_channel::{Receiver, Sender};
-use eframe::wgpu::{self, Device};
+use eframe::wgpu::{self, Device, Queue};
 use glam::{vec3, Vec2};
 use uuid::Uuid;
 
@@ -35,7 +35,7 @@ pub struct Project {
 }
 
 impl Project {
-    pub fn new(device: &Arc<Device>, queue: &wgpu::Queue, renderer : &Renderer) -> Project {
+    pub fn new(device: &Arc<Device>, queue: &Arc<Queue>, renderer : &Renderer) -> Project {
         let axises = ComponentArray::new(
             vec![
                 vertex::x().notvisible(),
@@ -43,7 +43,7 @@ impl Project {
                 vertex::y().notvisible(),
                 vertex::z(),
             ],
-            device,
+            device, queue,
         );
         let grids = ComponentArray::new(
             vec![
@@ -52,7 +52,7 @@ impl Project {
                 vertex::y(),
                 vertex::z().notvisible(),
             ],
-            device,
+            device, queue,
         );
         let arrows = ComponentArray::new(
             vec![
@@ -60,7 +60,7 @@ impl Project {
                 vertex::y().notvisible(),
                 vertex::z().notvisible(),
             ],
-            device,
+            device, queue,
         );
         let points = ComponentArray::new(
             vec![
@@ -69,15 +69,15 @@ impl Project {
                 point::new(vec3(1.0, 0.0, 0.0)),
                 point::new(vec3(0.0, 1.0, 0.0)),
             ],
-            device,
+            device, queue,
         );
 
         let circles =
-            ComponentArray::new(vec![circle::new(0, 2.5, vec3(1.0, 0.0, 0.0), 0.0)], device);
+            ComponentArray::new(vec![circle::new(0, 2.5, vec3(1.0, 0.0, 0.0), 0.0)], device, queue,);
 
-        let lines = ComponentArray::new(vec![line::new(0, 1)], device);
+        let lines = ComponentArray::new(vec![line::new(0, 1)], device, queue,);
 
-        let beziers = ComponentArray::new(vec![bezier::new(0, 3, 2, 1)], device);
+        let beziers = ComponentArray::new(vec![bezier::new(0, 3, 2, 1)], device, queue,);
 
         let arrow_planes = ComponentArray::new(
             vec![
@@ -85,7 +85,7 @@ impl Project {
                 vertex::y().notvisible(),
                 vertex::z().notvisible(),
             ],
-            device,
+            device, queue,
         );
 
         let components = ComponentCollection {
@@ -97,6 +97,8 @@ impl Project {
             lines,
             beziers,
             circles,
+            hovers: vec![],
+            selected: vec![],
         };
 
         let buffer = UniformBuffer::new(device, 4 * 16 + 4 * 16, &components, renderer);

@@ -6,9 +6,13 @@ use eframe::{
         RenderPassColorAttachment, RenderPassDescriptor,
     },
 };
-use egui::{epaint::Shadow, vec2, Color32, Margin, Pos2, Rect, Response, Rounding, Stroke, Vec2};
+use egui::{
+    epaint::Shadow, vec2, Align, Color32, Id, LayerId, Layout, Margin, Pos2, Rect, Response,
+    Rounding, Stroke, Ui, Vec2,
+};
 use glam::{Mat4, Vec3};
 use instant::{Duration, Instant};
+use log::{info, warn};
 use std::ops::DerefMut;
 use std::{
     num::NonZeroU64,
@@ -22,7 +26,7 @@ use crate::{
     components::component::HoverElement,
     project::{self, Project, ProjectState},
     rendering::{
-        buffer_reader::BufferReader,
+        buffer_reader::{execute, BufferReader},
         renderer::{self, Renderer},
     },
     ui::{main_menu::draw_commands, tabcontrol},
@@ -32,13 +36,13 @@ pub struct AppState {
     pub projects: Vec<Project>,
     pub selected_project: usize,
     pub renderer: Renderer,
+    pub commands: Vec<Command>,
+    pub buffer_reader: BufferReader,
 }
 pub struct App {
     pub adapter_info: AdapterInfo,
     pub last_render_time: Instant,
     pub selected_project: usize,
-    pub commands: Vec<Command>,
-    pub buffer_reader: BufferReader,
 }
 
 impl App {
@@ -50,8 +54,6 @@ impl App {
             adapter_info: wgpu_render_state.adapter.get_info(),
             last_render_time: Instant::now(),
             selected_project: 0,
-            commands: get_commands(),
-            buffer_reader: BufferReader::new(device, &wgpu_render_state.queue, 1_000_000),
         };
 
         let renderer = crate::rendering::renderer::Renderer::new(device, wgpu_render_state);
@@ -63,6 +65,8 @@ impl App {
                 projects: vec![Project::new(device, &wgpu_render_state.queue, &renderer)],
                 selected_project: 0,
                 renderer,
+                commands: get_commands(),
+                buffer_reader: BufferReader::new(device, &wgpu_render_state.queue, 1_000_000),
             });
         return app;
     }
@@ -93,95 +97,120 @@ impl CallbackTrait for RenderCallback {
     }
 }
 
+pub async fn update_async(ctx: &egui::Context, renderstate: &RenderState) {
+    let available_rect = ctx.available_rect();
+    let layer_id = LayerId::background();
+    let id = Id::new("central_panel");
+
+    let clip_rect = ctx.screen_rect();
+    let mut panel_ui = Ui::new(ctx.clone(), layer_id, id, available_rect, clip_rect);
+
+    let panel_rect = panel_ui.available_rect_before_wrap();
+    let mut panel_ui = panel_ui.child_ui(panel_rect, Layout::top_down(Align::Min));
+
+    let mut prepared = egui::Frame {
+        inner_margin: Margin::same(0.),
+        outer_margin: Margin::same(0.),
+        rounding: Rounding::none(),
+        shadow: Shadow::NONE,
+        fill: Color32::TRANSPARENT,
+        stroke: Stroke::NONE,
+    }
+    .begin(&mut panel_ui);
+    let  ui = &mut  prepared.content_ui;
+    ui.expand_to_include_rect(ui.max_rect()); // Expand frame to include it all
+
+    let spacing = ui.spacing_mut();
+    spacing.item_spacing = Vec2::ZERO;
+
+    tabcontrolheader(renderstate, ui);
+
+    {
+        let mut writer = renderstate.renderer.write();
+        let appstate: &mut AppState = writer.callback_resources.get_mut().unwrap();
+        let project = &mut appstate.projects[appstate.selected_project];
+
+        draw_commands(ui, project, &appstate.commands);
+    }
+
+    let (rect, response) = ui.allocate_at_least(ui.available_size(), egui::Sense::drag());
+
+    {
+        let mut writer = renderstate.renderer.write();
+        let appstate: &mut AppState = writer.callback_resources.get_mut().unwrap();
+        let project = &mut appstate.projects[appstate.selected_project];
+
+        update_camera(&mut project.state, rect, response, ctx);
+        flush_buffer(project, renderstate, rect, ctx);
+    }
+    run_compute_pass(renderstate);
+    update_selected(renderstate, ctx).await;
+
+    run_render_pass(ui, rect);
+
+    let response = prepared.end(&mut panel_ui);
+
+    /*
+    egui::Window::new("GPU Info").show(&ctx, |ui| {
+        ui.label(format!("backend: {:?}", &self.adapter_info.backend));
+        ui.label(format!("name: {}", &self.adapter_info.name));
+        ui.label(format!("device: {}", &self.adapter_info.device));
+        ui.label(format!("device_type: {:?}", &self.adapter_info.device_type));
+        ui.label(format!("driver: {}", &self.adapter_info.driver));
+        ui.label(format!("driver_info: {}", &self.adapter_info.driver_info));
+        let ele = self.last_render_time.elapsed();
+        let fps = 1.0 / ele.as_secs_f64();
+        ui.label(format!("duration {:.0}ms", ele.as_millis() as f64));
+        ui.label(format!("frames {:.0}/s", fps));
+        self.last_render_time = Instant::now();
+    });*/
+
+    ctx.request_repaint();
+}
+
+async fn update_selected(renderstate: &RenderState, ctx: &egui::Context) {
+    let mut writer = renderstate.renderer.write();
+    let appstate: &mut AppState = writer.callback_resources.get_mut().unwrap();
+    let project = &mut appstate.projects[appstate.selected_project];
+
+    let data = appstate
+        .buffer_reader
+        .read_buffer(&project.state.uniform_buffer.atomic_buffer, 0, 32)
+        .await;
+    if data.len() > 0 {
+        let counter: u32 = ((data[3] as u32) << 24)
+            | ((data[2] as u32) << 16)
+            | ((data[1] as u32) << 8)
+            | (data[0] as u32);
+
+        project.state.components.hovers = appstate
+            .buffer_reader
+            .read_buffer_gen(
+                &project.state.uniform_buffer.hover_buffer,
+                0,
+                counter as u64,
+            )
+            .await;
+        warn!("hover");
+        print!("hover: {} ", project.state.components.hovers.len());
+        for hover in project.state.components.hovers.iter() {
+            print!("{:?} ", hover.ctype)
+        }
+        println!("");
+
+        project.state.components.update_selected(ctx);
+    }
+}
+
 impl eframe::App for App {
     fn save(&mut self, storage: &mut dyn eframe::Storage) {}
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::CentralPanel::default()
-            .frame(egui::Frame {
-                inner_margin: Margin::same(0.),
-                outer_margin: Margin::same(0.),
-                rounding: Rounding::none(),
-                shadow: Shadow::NONE,
-                fill: Color32::TRANSPARENT,
-                stroke: Stroke::NONE,
-            })
-            .show(ctx, |ui| {
-                let spacing = ui.spacing_mut();
-                spacing.item_spacing = Vec2::ZERO;
-
-                let renderstate = _frame.wgpu_render_state().unwrap();
-
-                tabcontrolheader(renderstate, ui);
-
-                {
-                    let mut writer = renderstate.renderer.write();
-                    let appstate: &mut AppState = writer.callback_resources.get_mut().unwrap();
-                    let project = &mut appstate.projects[appstate.selected_project];
-
-                    draw_commands(ui, project, &self.commands);
-                }
-
-                let (rect, response) =
-                    ui.allocate_at_least(ui.available_size(), egui::Sense::drag());
-
-                {
-                    let mut writer = renderstate.renderer.write();
-                    let appstate: &mut AppState = writer.callback_resources.get_mut().unwrap();
-                    let project = &mut appstate.projects[appstate.selected_project];
-
-                    update_camera(&mut project.state, rect, response, ctx);
-                    flush_buffer(project, renderstate, rect, ctx);
-                }
-                run_compute_pass(renderstate);
-                {
-                    let mut writer = renderstate.renderer.write();
-                    let appstate: &mut AppState = writer.callback_resources.get_mut().unwrap();
-                    let project = &mut appstate.projects[appstate.selected_project];
-
-                    let data = self.buffer_reader.read_buffer(
-                        &project.state.uniform_buffer.atomic_buffer,
-                        0,
-                        32,
-                    );
-                    if data.len() > 0 {
-                        let counter: u32 = ((data[3] as u32) << 24)
-                            | ((data[2] as u32) << 16)
-                            | ((data[1] as u32) << 8)
-                            | (data[0] as u32);
-
-                        let hover_elements: Vec<HoverElement> = self.buffer_reader.read_buffer_gen(
-                            &project.state.uniform_buffer.hover_buffer,
-                            0,
-                            counter as u64,
-                        );
-
-                        print!("hover: {} ", hover_elements.len());
-                        for hover in hover_elements.iter() {
-                            print!("{:?} ", hover.ctype)
-                        }
-                        println!("");
-                    }
-                }
-
-                run_render_pass(ui, rect);
-            });
-
-        egui::Window::new("GPU Info").show(&ctx, |ui| {
-            ui.label(format!("backend: {:?}", &self.adapter_info.backend));
-            ui.label(format!("name: {}", &self.adapter_info.name));
-            ui.label(format!("device: {}", &self.adapter_info.device));
-            ui.label(format!("device_type: {:?}", &self.adapter_info.device_type));
-            ui.label(format!("driver: {}", &self.adapter_info.driver));
-            ui.label(format!("driver_info: {}", &self.adapter_info.driver_info));
-            let ele = self.last_render_time.elapsed();
-            let fps = 1.0 / ele.as_secs_f64();
-            ui.label(format!("duration {:.0}ms", ele.as_millis() as f64));
-            ui.label(format!("frames {:.0}/s", fps));
-            self.last_render_time = Instant::now();
+        let ctx = ctx.clone();
+        let renderstate = _frame.wgpu_render_state().unwrap().clone();
+        execute(async move {
+            update_async(&ctx, &renderstate).await;
         });
-
-        ctx.request_repaint();
     }
 }
 
@@ -253,7 +282,7 @@ fn run_compute_pass(renderstate: &RenderState) {
 fn tabcontrolheader(renderstate: &RenderState, ui: &mut egui::Ui) {
     let mut writer = renderstate.renderer.write();
     let appstate: &mut AppState = writer.callback_resources.get_mut().unwrap();
-    
+
     tabcontrol::show_tabs(
         ui,
         &mut appstate.projects,

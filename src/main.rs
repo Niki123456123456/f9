@@ -3,12 +3,16 @@
 
 // https://webgpufundamentals.org/webgpu/lessons/webgpu-compute-shaders.html
 
+use log::log;
+use log::Level;
 
 // Icosphere Quadsphere UVsphere
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> eframe::Result<()> {
+   
+    // https://github.com/Amanieu/parking_lot/issues/351
     env_logger::init();
-    
+    log!(Level::Error, "Test");
     let native_options = eframe::NativeOptions{
         depth_buffer: 32,
         stencil_buffer: 0,
@@ -33,6 +37,16 @@ fn main() {
         depth_buffer: 32,
         ..Default::default()
     };
+
+    log::info!("test");
+
+    if cfg!(target_family = "wasm") {
+        log::info!("wasm");
+    }
+    if cfg!(target_feature = "atomics") {
+        log::info!("atomics");
+    }
+   
 
     wasm_bindgen_futures::spawn_local(async {
         eframe::WebRunner::new()

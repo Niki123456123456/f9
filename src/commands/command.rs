@@ -85,6 +85,6 @@ pub struct Command {
     pub name: String,
     pub down_keys: Vec<egui::Key>,
     pub released_key: Option<egui::Key>,
-    pub function: Box<dyn CommandFunction>,
-    pub get_icon: Box<dyn Fn(&IconCollection) -> (&TextureHandle)>,
+    pub function: Box<dyn CommandFunction + Send + Sync>,
+    pub get_icon: Box<dyn Fn(&IconCollection) -> (&TextureHandle) + Send + Sync>,
 }
